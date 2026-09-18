@@ -22,7 +22,7 @@ from .services import task_action
     PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'],
     STORAGES={'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
               'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'}})
-class AgentTests(TestCase):
+class AgentTestBase(TestCase):
     @classmethod
     def setUpTestData(cls):
         dep = Department.objects.create(name='Qurilish')
@@ -71,6 +71,8 @@ class AgentTests(TestCase):
     def action(self, action='request_report', **extra):
         return tools.ChangeTask(**{'task_id': self.task.pk, 'action': action, 'text': '', 'due_at': None, 'no_deadline': False, **extra})
 
+
+class AgentTests(AgentTestBase):
     def test_auth_csrf_and_user_bound_conversation(self):
         self.client.logout()
         self.assertEqual(self.message('Salom').status_code, 401)

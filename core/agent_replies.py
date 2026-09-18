@@ -69,6 +69,22 @@ def lines(items):
 
 
 def render(name, data, focus='overview'):
+    if name == 'create_tool':
+        return data['message']
+    if name.startswith('dyn_'):
+        result = data['data']
+        if 'rows' not in result:
+            return render(data['result_kind'], result, focus)
+        message = f"Natija: {result['total']} ta qator."
+        if result.get('truncated'):
+            message += ' Quyida dastlabki qismi ko‘rsatilgan.'
+        if focus == 'count':
+            return message
+        def value(item):
+            if isinstance(item, float):
+                return f'{item:.2f}'
+            return '—' if item is None else str(item)
+        return message+'\n'+lines(['; '.join(k+': '+value(v) for k, v in row.items()) for row in result['rows']])
     if name == 'read_structure':
         departments = {item['id']: item['name'] for item in data['departments']}
         return 'Bo‘linmalar:\n'+lines(departments.values())+'\nXodimlar:\n'+lines([

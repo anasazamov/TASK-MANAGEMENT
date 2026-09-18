@@ -229,6 +229,7 @@ class AgentConversation(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     messages = models.JSONField(default=list)
+    tools = models.JSONField(default=dict)
     references = models.JSONField(default=list)
     scope = models.CharField(max_length=100, blank=True)
     busy_until = models.DateTimeField(null=True)

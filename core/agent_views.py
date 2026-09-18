@@ -38,8 +38,8 @@ def conversation_for(user, value):
     if conversation.scope != scope or allowed != set(conversation.references) or conversation.updated_at < timezone.now()-timedelta(days=1):
         # Do not return old transcripts or feed them back to the model after a
         # role/department/assignment change revokes access to referenced data.
-        conversation.messages, conversation.references, conversation.scope = [], [], scope
-        conversation.save(update_fields=['messages', 'references', 'scope', 'updated_at'])
+        conversation.messages, conversation.references, conversation.tools, conversation.scope = [], [], {}, scope
+        conversation.save(update_fields=['messages', 'references', 'tools', 'scope', 'updated_at'])
         AgentProposal.objects.filter(conversation=conversation, state='pending').update(state='cancelled')
         AgentTurn.objects.filter(conversation=conversation).delete()
     return conversation

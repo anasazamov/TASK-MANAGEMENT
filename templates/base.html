@@ -1,0 +1,59 @@
+{% load static ui %}<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page_title|default:'Topshiriq nazorati' }} · Samarkand Invest</title>
+  <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+  <script src="{% static 'js/theme.js' %}"></script>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  {% if user.is_authenticated %}<link rel="stylesheet" href="{% static 'css/agent.css' %}"><script src="{% static 'js/voice-vad.js' %}" defer></script><script src="{% static 'js/voice-noise-filter.js' %}" defer></script><script src="{% static 'js/voice-realtime.js' %}" defer></script><script src="{% static 'js/agent.js' %}" defer></script>{% endif %}
+  <script src="{% static 'js/app.js' %}" defer></script>
+  {% if user.is_authenticated %}<script src="{% static 'js/voice-audio.js' %}" defer></script><link rel="stylesheet" href="{% static 'css/voice-identity.css' %}">{% endif %}
+</head>
+<body>
+<a class="skip-link" href="#main">Asosiy mazmunga o‘tish</a>
+{% if user.is_authenticated %}
+<button class="sidebar-scrim" aria-label="Menyuni yopish" data-menu-close></button>
+<aside class="sidebar" id="sidebar">
+  <a class="brand" href="{% url 'dashboard' %}" aria-label="Samarkand Invest Company — bosh sahifa">
+    <svg class="brand-mark" viewBox="0 0 54 62" aria-hidden="true"><path fill="currentColor" d="M2 31 16 22v38H2zm18-12 14-9v50H20zM38 8 52 0v60H38z"/><path fill="var(--surface)" d="M7 42h5v3H9v3h3v8H7v-3h3v-3H7zm18-8h5v22h-5zm18-8h5v3h-2v24h2v3h-5z"/></svg>
+    <span>SAMARKAND<br>INVEST<br>COMPANY</span>
+  </a>
+  <p class="brand-caption">Topshiriq nazorati</p>
+  <nav aria-label="Asosiy menyu">
+    <a class="nav-link {% if current_page == 'dashboard' %}selected{% endif %}" href="{% url 'dashboard' %}">{% icon 'grid' %}<span>{% if user.role == 'employee' %}Mening panelim{% else %}Boshqaruv paneli{% endif %}</span></a>
+    <a class="nav-link {% if current_page == 'tasks' or current_page == 'task_detail' or current_page == 'task_create' %}selected{% endif %}" href="{% url 'tasks' %}">{% icon 'tasks' %}<span>Topshiriqlar</span><span class="nav-count">{{ nav_active_count }}</span></a>
+    {% if user.can_assign %}<a class="nav-link {% if current_page == 'employees' %}selected{% endif %}" href="{% url 'employees' %}">{% icon 'users' %}<span>{% if user.is_chair %}Xodimlar{% else %}Bo‘lim xodimlari{% endif %}</span></a>{% endif %}
+    {% if user.is_chair %}<a class="nav-link {% if current_page == 'structure' %}selected{% endif %}" href="{% url 'structure' %}">{% icon 'structure' %}<span>Struktura</span></a>{% endif %}
+    <div class="nav-caption">NAZORAT</div>
+    {% if user.can_assign %}<a class="nav-link {% if current_page == 'chains' %}selected{% endif %}" href="{% url 'chains' %}">{% icon 'link' %}<span>Nazorat zanjiri</span></a>{% endif %}
+    <a class="nav-link {% if current_page == 'timeline' %}selected{% endif %}" href="{% url 'timeline' %}">{% icon 'history' %}<span>Harakatlar tarixi</span></a>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="workspace-note"><span class="online-dot"></span> Yagona ijro nazorati tizimi</div>
+    <div class="user-card"><span class="avatar navy">{{ user.initials }}</span><div><strong>{{ user.short_name }}</strong><small>{{ user.get_role_display }}</small></div><form action="{% url 'logout' %}" method="post">{% csrf_token %}<button class="icon-button" title="Chiqish" aria-label="Hisobdan chiqish">{% icon 'exit' %}</button></form></div>
+    <a class="account-link" href="{% url 'password_change' %}">Parolni o‘zgartirish</a>
+  </div>
+</aside>
+<div class="workspace">
+  <header class="topbar">
+    <button class="icon-button menu-button" data-menu aria-label="Menyuni ochish" aria-expanded="false" aria-controls="sidebar">{% icon 'menu' %}</button>
+    <div class="page-heading"><h1>{{ page_title }}</h1><p>{{ subtitle }}</p></div>
+    <div class="header-actions">
+      <button class="icon-button theme-toggle" data-theme-toggle aria-label="Tungi rejimga o‘tish" title="Rang rejimi">{% icon 'sun' %}</button>
+      <a class="icon-button notification-button {% if current_page == 'notifications' %}selected{% endif %}" href="{% url 'notifications' %}" aria-label="Xabarnomalar{% if unread_count %}: {{ unread_count }} ta o‘qilmagan{% endif %}">{% icon 'bell' %}{% if unread_count %}<span class="notification-count">{% if unread_count > 9 %}9+{% else %}{{ unread_count }}{% endif %}</span>{% endif %}</a>
+      <button type="button" class="button secondary voice-header" data-agent-open>{% icon 'mic' %} Agent</button>
+      {% if user.can_assign %}<a class="button primary" href="{% url 'task_create' %}">{% icon 'plus' %}<span>Topshiriq berish</span></a>{% endif %}
+    </div>
+  </header>
+  <main id="main" class="main-content">
+    {% if messages %}<div class="messages" aria-live="polite">{% for message in messages %}<div class="message {{ message.tags }}">{% icon 'check' %}<span>{{ message }}</span><button type="button" data-dismiss class="icon-button" aria-label="Xabarni yopish">{% icon 'close' %}</button></div>{% endfor %}</div>{% endif %}
+    {% block content %}{% endblock %}
+    <footer class="page-footer"><span>Samarkand Invest Company</span><span>Topshiriq nazorati · {{ today|date:'Y' }}</span></footer>
+  </main>
+</div>
+<dialog class="task-drawer" id="task-drawer" aria-label="Topshiriq tafsilotlari"><button class="drawer-close icon-button" data-drawer-close aria-label="Tafsilotlarni yopish">{% icon 'close' %}</button><div id="drawer-content"></div></dialog>
+{% include 'core/_agent.html' %}
+{% else %}{% block unauthenticated %}{% endblock %}{% endif %}
+{% block extra_scripts %}{% endblock %}
+</body></html>

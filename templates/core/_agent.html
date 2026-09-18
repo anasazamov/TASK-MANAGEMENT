@@ -1,0 +1,28 @@
+{% load ui static %}
+<button type="button" class="agent-launch" data-agent-open aria-label="Ovozli agentni ochish" aria-expanded="false" aria-controls="system-agent">{% icon 'mic' %}<span>Ovozli agent</span></button>
+<section class="system-agent" id="system-agent" role="dialog" aria-label="Ovozli agent" hidden
+ data-user="{{ user.pk }}" data-state-url="{% url 'agent_state' %}" data-message-url="{% url 'agent_message' %}" data-reset-url="{% url 'agent_reset' %}"
+ data-status-url="{% url 'voice_status' %}" data-transcribe-url="{% url 'voice_transcribe' %}" data-poll-url="{% url 'voice_transcription_status' %}" data-speak-url="{% url 'voice_speak' %}"
+ data-session-url="{% url 'voice_realtime_session' %}" data-stream-url="{% url 'voice_realtime_speak' %}" data-worklet-url="{% static 'js/voice-worklet.js' %}"
+ data-filter-worker-url="{% static 'js/voice-neural-worker.js' %}" data-filter-runtime-url="{% static 'vendor/voice-filter-v1/ort.wasm.min.js' %}"
+ data-filter-model-url="{% static 'vendor/voice-filter-v1/silero_vad_v5.onnx' %}">
+ <header class="agent-heading"><span class="agent-mark">{% icon 'mic' %}</span><div><strong>Ovozli agent</strong><small>Topshiriqlar bo‘yicha yordamchingiz</small></div><button type="button" class="icon-button" data-agent-expand hidden aria-label="Suhbatni kengaytirish" title="Suhbatni kengaytirish">{% icon 'history' %}</button><button type="button" class="icon-button" data-agent-reset aria-label="Yangi suhbat" title="Yangi suhbat">{% icon 'plus' %}</button><button type="button" class="icon-button" data-agent-close aria-label="Agentni yopish">{% icon 'close' %}</button></header>
+ <div class="agent-connection"><span data-agent-connection role="status">Ulanish tekshirilmoqda…</span></div>
+ <div class="agent-scroll">
+  <div class="agent-intro"><strong>Ayting — topaman, ko‘rsataman, bajaraman.</strong><p>Topshiriqni ochish, taqsimlash, muddat va ijroni boshqarishda yordam beraman. O‘zgarishlarni avval sizga ko‘rsataman.</p></div>
+  <div class="agent-examples"><button type="button" data-agent-example="Kechikkan topshiriqlarni ko‘rsat">Kechikkanlar</button><button type="button" data-agent-example="Topshiriqlarni och">Topshiriqlar</button>{% if user.can_assign %}<button type="button" data-agent-example="Yangi topshiriq och">Yangi topshiriq</button>{% endif %}</div>
+  <div class="agent-messages" role="log" aria-live="polite" aria-label="Agent bilan suhbat"></div>
+  <div class="agent-proposal" hidden><strong>Amalni tekshiring</strong><dl></dl><p class="help-text">«Tasdiqlayman» deng yoki quyidagi tugmani bosing.</p><div><button type="button" class="button primary" data-agent-confirm>Tasdiqlash</button><button type="button" class="button secondary" data-agent-cancel>Bekor qilish</button></div></div>
+  <div class="agent-navigation" hidden><p></p><a class="button secondary" data-agent-link>Sahifani ochish</a></div>
+ </div>
+ <div class="agent-compose">
+  <div class="agent-live"><button type="button" class="button primary" data-agent-live aria-pressed="false">{% icon 'mic' %}<span>Jonli suhbat</span></button><div class="agent-live-info"><strong data-live-label>Bir marta yoqing, gaplashavering</strong><div class="agent-meter" aria-hidden="true"><span></span></div></div></div>
+  <p class="agent-status" data-agent-status role="status" aria-live="polite">Buyruqni yozing yoki mikrofonni bosing.</p>
+  <form id="agent-command-form">{% csrf_token %}<label class="agent-input-label" for="agent-command">Agentga buyruq</label><textarea id="agent-command" rows="2" maxlength="6000" placeholder="Masalan: T-104 ni och…" required></textarea><div class="agent-controls"><button type="button" class="button secondary" data-agent-record disabled aria-pressed="false">{% icon 'mic' %}<span>Gapirish</span></button><button type="button" class="button secondary" data-agent-file disabled aria-label="Audio fayl tanlash" title="Audio fayl">{% icon 'plus' %}</button><input type="file" data-agent-upload hidden accept=".webm,.wav,.mp3,.m4a,.aac,.ogg,.opus,.flac"><button type="submit" class="button primary" data-agent-send>Yuborish {% icon 'arrow' %}</button></div></form>
+  <button type="button" class="button secondary" data-agent-retry hidden>Qayta urinish</button>
+  <div class="agent-speech"><label><input type="checkbox" data-agent-auto checked> Javobni ovozda o‘qish</label><button type="button" data-agent-listen hidden>Tinglash</button><button type="button" data-agent-stop hidden>Ovozni to‘xtatish</button></div>
+  <small class="help-text">AI yaratgan ovoz · VoiceLab</small>
+  <audio data-agent-audio controls hidden aria-label="Agent javobini tinglash"></audio>
+  <details class="agent-help"><summary>Ovoz va suhbat haqida</summary><label><input type="checkbox" data-agent-review> Eshitilgan matnni yuborishdan oldin tekshirish</label><p>Erkin suhbat: buyruqni maxsus so‘z bilan boshlash shart emas. Nutq/shovqin filtri ishlaydi. Ovoz egasi tekshirilmaydi. Bir vaqtda bir necha kishi gapirsa, qayta aytish kerak bo‘lishi mumkin.</p><p>1,8 soniya sukutdan keyin agent javobi to‘xtaydi va nutq matnga aylantirishga yuboriladi. Matn gap tugagach ko‘rinadi. Har gap 28 soniyagacha. Panelni yopish yoki boshqa tabga o‘tish mikrofonni o‘chiradi. Nutqingiz VoiceLab orqali matnga aylantiriladi. Javob matnini OpenAI tayyorlaydi; uni VoiceLab sun’iy ovozda o‘qiydi. Jonli xizmat vaqtincha ishlamasa, shu gap VoiceLab’ning oddiy STT xizmatida tekshiriladi va uning tarixida saqlanishi mumkin. Audio fayl 10 MB gacha. «Yangi suhbat» suhbat tarixini tozalaydi.</p></details>
+ </div>
+</section>

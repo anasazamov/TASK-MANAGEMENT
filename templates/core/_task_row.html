@@ -1,0 +1,12 @@
+{% load ui %}
+<a href="{{ task.get_absolute_url }}" class="task-row" data-drawer>
+  <span class="status-line {{ task.state }}"></span>
+  {% if show_avatar %}<span class="avatar">{{ task.assignee.initials }}</span>{% endif %}
+  <div class="task-row-body"><strong>{{ task.title }}</strong><span class="muted">{{ task.assignee.short_name }} <span class="separator">·</span> {{ task.assignee.job_title }}</span>
+    {% if task.parent_id %}<span class="parent-label">↳ {{ task.parent.code }} · {{ task.parent.title|truncatechars:65 }}</span>{% endif %}
+    {% if task.is_stale %}<span class="stale-note">{% icon 'clock' %} {{ task.report_label }}</span>{% endif %}
+    {% if task.escalations %}<span class="escalation-note">↑ Eskalatsiya: {{ task.escalations.0.assignee.short_name }} — {{ task.escalations.0.deadline_text }}{% if task.escalations|length > 1 %} · jami {{ task.escalations|length }} ta{% endif %}</span>{% endif %}
+  </div>
+  <div class="task-row-date {{ task.state }}"><span>{% if task.due_at %}{{ task.due_at|date:'d.m' }} <small>{{ task.due_at|date:'H:i' }}</small>{% else %}Muddatsiz{% endif %}</span><small>{{ task.deadline_text }}</small></div>
+  {% icon 'chevron' %}
+</a>

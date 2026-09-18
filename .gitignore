@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local Django runtime artifacts
+.dev-secret-key
+.demo-credentials.txt
+staticfiles/
+server.*.log
+private_models/

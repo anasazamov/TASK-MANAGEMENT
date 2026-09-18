@@ -1,0 +1,22 @@
+{% extends 'base.html' %}{% load static ui %}
+{% block content %}
+<section class="voice-setup form-card" id="voice-setup" data-enroll-url="{{ setup_action }}" data-remove-url="{% url 'voice_remove' %}" data-worklet-url="{% static 'js/voice-worklet.js' %}">
+  <div class="voice-setup-heading"><span class="agent-mark">{% icon 'mic' %}</span><div><h2>Agent ovozingizni tanisin</h2><p class="muted">{{ user.full_name }} hisobining ovoz namunasi</p></div></div>
+  {% if profile %}<p class="voice-profile-status success">Ovoz namunangiz saqlangan. Quyida uni qayta yozishingiz yoki o‘chirishingiz mumkin.</p>{% else %}<p class="voice-profile-status">Ovozli buyruqlardan oldin uchta qisqa namuna yozing. Bu yoningizdagi xodim nutqi bilan chalkashishni kamaytiradi.</p>{% endif %}
+  <ol class="voice-setup-tips"><li>Tinch joyda, mikrofon odatdagi masofada tursin.</li><li>Har bir matnni tabiiy ovozingizda, shoshmasdan o‘qing.</li><li>Yozuv paytida faqat siz gapiring. Har namuna 8 soniya yoziladi.</li></ol>
+  <form id="voice-enrollment-form">{% csrf_token %}
+    <div class="voice-samples">
+      <article class="voice-sample" data-sample="1"><div><strong>1-namuna</strong><span data-sample-state>Yozilmagan</span></div><p>Assalomu alaykum. Men topshiriqlarimni ovozli yordamchi orqali boshqaraman. Bugungi ishlar ro‘yxatini ko‘rsat.</p><button class="button secondary" type="button" data-record-sample="1">{% icon 'mic' %} Birinchi namunani yozish</button></article>
+      <article class="voice-sample" data-sample="2"><div><strong>2-namuna</strong><span data-sample-state>Yozilmagan</span></div><p>Muddati o‘tgan barcha topshiriqlarni ochib ko‘rsat. Xodimlar va vazifalar holatini tekshirmoqchiman.</p><button class="button secondary" type="button" data-record-sample="2">{% icon 'mic' %} Ikkinchi namunani yozish</button></article>
+      <article class="voice-sample" data-sample="3"><div><strong>3-namuna</strong><span data-sample-state>Yozilmagan</span></div><p>Tasdiq kutilayotgan va muddatsiz topshiriqlarni ko‘rsat. Kerak bo‘lsa, boshqa sahifani ochishni so‘rayman.</p><button class="button secondary" type="button" data-record-sample="3">{% icon 'mic' %} Uchinchi namunani yozish</button></article>
+    </div>
+    <p class="voice-setup-privacy">Namuna shu serverda hisobingizga bog‘lanib, shifrlangan ovoz belgisi sifatida saqlanadi. Namuna audiosi saqlanmaydi va VoiceLab yoki OpenAI’ga yuborilmaydi. Uni istalgan payt o‘chirishingiz mumkin.</p>
+    <label class="voice-consent"><input type="checkbox" id="voice-consent"> Ovoz namunamdan buyruqlarimni ajratish uchun foydalanishga roziman.</label>
+    <p id="voice-setup-status" role="status" aria-live="polite">Uchta namunani navbat bilan yozing.</p>
+    <div class="form-actions"><button type="submit" class="button primary" id="voice-save" disabled>Ovozimni saqlash</button><button type="button" class="button secondary" id="voice-record-cancel" hidden>Yozishni bekor qilish</button><a class="button secondary" href="{{ return_url }}" id="voice-continue">{% if profile %}Tizimga qaytish{% else %}Hozircha matn bilan davom etish{% endif %}</a></div>
+  </form>
+  {% if profile %}<form method="post" id="voice-remove-form">{% csrf_token %}<button class="button secondary danger" type="submit">Ovoz namunamni o‘chirish</button></form>{% endif %}
+  <p class="muted voice-setup-note">Bir vaqtda bir necha kishi gapirsa yoki ovoz juda qisqa bo‘lsa, agent qayta aytishni so‘rashi mumkin. Ovoz tanish login paroli o‘rnini bosmaydi.</p>
+</section>
+{% endblock %}
+{% block extra_scripts %}<script src="{% static 'js/voice-enrollment.js' %}" defer></script>{% endblock %}

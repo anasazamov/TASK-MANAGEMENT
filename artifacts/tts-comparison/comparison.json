@@ -1,0 +1,19 @@
+{
+  "text": "Assalomu alaykum. A'zamov Azizning muddati o'tgan topshiriqlarini ochyapman. Tasdiq kutilayotgan topshiriqlarni ham ko'rsatishim mumkin.",
+  "samples": [
+    {
+      "voice": "Gulnoza",
+      "voice_id": "voice_01J9NEUTRAL0000000000000001",
+      "seconds": 7.84,
+      "generation_seconds": 0.9,
+      "file": "D:\\Example\\TASK-MANAGEMENT\\artifacts\\tts-comparison\\gulnoza.wav"
+    },
+    {
+      "voice": "Sardor",
+      "voice_id": "voice_xdQMoRJkjHbPIB-jounXzKq8",
+      "seconds": 9.3,
+      "generation_seconds": 0.92,
+      "file": "D:\\Example\\TASK-MANAGEMENT\\artifacts\\tts-comparison\\sardor.wav"
+    }
+  ]
+}

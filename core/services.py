@@ -1,0 +1,170 @@
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import transaction
+from django.utils import timezone
+
+from .models import DeadlineRequest, Event, Notification, Task
+from .permissions import assignees_for, can_delegate, can_manage
+
+
+def require(condition):
+    if not condition:
+        raise PermissionDenied('Bu amal uchun ruxsatingiz yo‘q.')
+
+
+def log(task, actor, kind, body):
+    return Event.objects.create(task=task, actor=actor, kind=kind, body=body)
+
+
+def notify(task, users, title):
+    for user_id in {u.pk for u in users if u and u.is_active}:
+        Notification.objects.create(task=task, user_id=user_id, title=title)
+
+
+def active_descendants(task):
+    pending, seen, result = [task.pk], {task.pk}, []
+    while pending:
+        children = list(Task.objects.filter(parent_id__in=pending))
+        pending = []
+        for child in children:
+            if child.pk not in seen:
+                seen.add(child.pk)
+                pending.append(child.pk)
+                if child.status != Task.Status.ACCEPTED:
+                    result.append(child)
+    return result
+
+
+def validate_deadline(due_at, parent=None, task=None):
+    if due_at and due_at <= timezone.now():
+        raise ValidationError('Yangi muddat kelajakdagi sana va vaqt bo‘lishi kerak.')
+    if parent:
+        for ancestor in [*parent.ancestors(), parent]:
+            if ancestor.due_at and (not due_at or due_at > ancestor.due_at):
+                raise ValidationError('Quyi muddat asosiy topshiriq muddatidan kech bo‘lishi mumkin emas.')
+    if task and due_at:
+        for child in active_descendants(task):
+            if not child.due_at or child.due_at > due_at:
+                raise ValidationError('Avval quyi topshiriqlar muddatlarini moslashtiring.')
+
+
+@transaction.atomic
+def create_task(user, data, parent=None):
+    require(user.can_assign)
+    require(assignees_for(user).filter(pk=data['assignee'].pk).exists())
+    if parent:
+        parent = Task.objects.select_for_update().get(pk=parent.pk)
+        require(can_delegate(user, parent))
+    validate_deadline(data.get('due_at'), parent=parent)
+    task = Task.objects.create(issuer=user, parent=parent, **data)
+    log(task, user, Event.Kind.CREATED, f'{user.short_name} → {task.assignee.short_name}')
+    if parent:
+        log(parent, user, Event.Kind.DELEGATED, f'{task.code}: {task.title} → {task.assignee.short_name}')
+    notify(task, [task.assignee], 'Sizga yangi topshiriq berildi')
+    return task
+
+
+@transaction.atomic
+def task_action(user, task_id, action, text='', due_at=None):
+    task = Task.objects.select_for_update(of=('self',)).enriched().get(pk=task_id)
+    require(Task.objects.visible_to(user).filter(pk=task_id).exists())
+    text = text.strip()
+    if len(text) > 10000:
+        raise ValidationError('Matn 10 000 belgidan oshmasligi kerak.')
+    manager = can_manage(user, task)
+    owner = task.assignee_id == user.pk
+    if action == 'comment':
+        if not text:
+            raise ValidationError('Izoh matnini kiriting.')
+        log(task, user, Event.Kind.COMMENT, text)
+        notify(task, [u for u in [task.issuer, task.assignee] if u.pk != user.pk], 'Yangi izoh qo‘shildi')
+        return task
+    if task.status == Task.Status.ACCEPTED:
+        raise ValidationError('Qabul qilingan topshiriq yopilgan.')
+    if action == 'submit':
+        require(owner)
+        if task.status != Task.Status.ACTIVE:
+            raise ValidationError('Ijro allaqachon topshirilgan.')
+        if active_descendants(task):
+            raise ValidationError('Avval barcha quyi topshiriqlar ijrosi qabul qilinishi kerak.')
+        if not text:
+            raise ValidationError('Bajarilgan ish haqida qisqa hisobot yozing.')
+        task.status = Task.Status.SUBMITTED
+        log(task, user, Event.Kind.SUBMITTED, text)
+        notify(task, [task.issuer], 'Ijro topshirildi — qaroringiz kutilmoqda')
+    elif action in ['accept', 'return']:
+        require(manager)
+        if task.status != Task.Status.SUBMITTED:
+            raise ValidationError('Topshiriq ijrosi hali topshirilmagan.')
+        if action == 'accept':
+            if active_descendants(task):
+                raise ValidationError('Quyi topshiriqlar hali yopilmagan.')
+            task.status = Task.Status.ACCEPTED
+            task.accepted_at = timezone.now()
+            log(task, user, Event.Kind.ACCEPTED, 'Bajarilgan ish tekshirildi va qabul qilindi.')
+            task.deadline_requests.filter(state='pending').update(state='rejected', resolved_by=user, resolved_at=timezone.now())
+            notify(task, [task.assignee], 'Ijro qabul qilindi')
+        else:
+            if not text:
+                raise ValidationError('Qaytarish sababini yozish majburiy.')
+            task.status = Task.Status.ACTIVE
+            log(task, user, Event.Kind.RETURNED, text)
+            notify(task, [task.assignee], 'Topshiriq qayta ishlashga qaytarildi')
+    elif action == 'set_deadline':
+        require(manager)
+        if task.status != Task.Status.ACTIVE:
+            raise ValidationError('Faqat jarayondagi topshiriq muddatini o‘zgartirish mumkin.')
+        validate_deadline(due_at, parent=task.parent, task=task)
+        old = timezone.localtime(task.due_at).strftime('%d.%m.%Y %H:%M') if task.due_at else 'Muddatsiz'
+        task.due_at = due_at
+        new = timezone.localtime(due_at).strftime('%d.%m.%Y %H:%M') if due_at else 'Muddatsiz'
+        log(task, user, Event.Kind.DEADLINE, f'Muddat o‘zgartirildi: {old} → {new}. {text}')
+        notify(task, [task.assignee], 'Topshiriq muddati o‘zgartirildi')
+    elif action == 'request_deadline':
+        require(owner)
+        if task.status != Task.Status.ACTIVE:
+            raise ValidationError('Faqat jarayondagi topsshiriq uchun so‘rov beriladi.')
+        if not text or not due_at:
+            raise ValidationError('Yangi muddat va sababni kiriting.')
+        validate_deadline(due_at, parent=task.parent, task=task)
+        if task.due_at and due_at <= task.due_at:
+            raise ValidationError('So‘ralayotgan muddat amaldagi muddatdan keyin bo‘lishi kerak.')
+        if task.deadline_requests.filter(state='pending').exists():
+            raise ValidationError('Oldingi so‘rovingiz bo‘yicha qaror kutilmoqda.')
+        DeadlineRequest.objects.create(task=task, requester=user, proposed_due_at=due_at, reason=text)
+        log(task, user, Event.Kind.DEADLINE, f'Muddat uzaytirish so‘raldi: {timezone.localtime(due_at):%d.%m.%Y %H:%M}. Sabab: {text}')
+        notify(task, [task.issuer], 'Muddatni uzaytirish so‘rovi')
+    elif action in ['approve_deadline', 'reject_deadline']:
+        require(manager)
+        request = task.deadline_requests.select_for_update().filter(state='pending').first()
+        if not request:
+            raise ValidationError('Ko‘rib chiqiladigan so‘rov yo‘q.')
+        if action == 'approve_deadline':
+            validate_deadline(request.proposed_due_at, parent=task.parent, task=task)
+            task.due_at = request.proposed_due_at
+            request.state = 'approved'
+            body = f'Muddat so‘rovi tasdiqlandi: {timezone.localtime(task.due_at):%d.%m.%Y %H:%M}.'
+        else:
+            if not text:
+                raise ValidationError('Rad etish sababini yozing.')
+            request.state = 'rejected'
+            body = f'Muddat so‘rovi rad etildi. Sabab: {text}'
+        request.resolved_by, request.resolved_at = user, timezone.now()
+        request.save()
+        log(task, user, Event.Kind.DEADLINE, body)
+        notify(task, [task.assignee], body[:240])
+    elif action == 'request_report':
+        require(manager)
+        task.report_requested_at = timezone.now()
+        log(task, user, Event.Kind.REPORT, 'Haftalik hisobot so‘raldi.')
+        notify(task, [task.assignee], 'Haftalik hisobot yuborishingiz so‘raldi')
+    elif action == 'report':
+        require(owner)
+        if not text:
+            raise ValidationError('Hisobot matnini kiriting.')
+        task.last_report_at = timezone.now()
+        log(task, user, Event.Kind.REPORT, text)
+        notify(task, [task.issuer], 'Haftalik hisobot taqdim etildi')
+    else:
+        raise ValidationError('Noma’lum amal.')
+    task.save()
+    return task

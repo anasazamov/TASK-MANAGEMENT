@@ -187,7 +187,7 @@
     finally { clearTimeout(timeout); if (speechController === controller) speechController = undefined; }
   }
   function safeNavigation(value) {
-    if (!value || typeof value.url !== 'string' || !/^\/(?:tasks\/(?:new\/|\d+\/)?|employees\/|structure\/|chains\/|timeline\/|notifications\/)?(?:\?[^#]*)?$/.test(value.url)) return null;
+    if (!value || typeof value.url !== 'string' || !/^\/(?:tasks\/(?:new\/|\d+\/)?|employees\/(?:new\/|\d+\/(?:edit|password)\/)?|account\/password\/|structure\/|chains\/|timeline\/|notifications\/)?(?:\?[^#]*)?$/.test(value.url)) return null;
     const url = new URL(value.url, location.origin);
     return url.origin === location.origin ? url : null;
   }
@@ -234,7 +234,7 @@
     $('[data-agent-retry]').hidden = true; $('.agent-navigation').hidden = true;
     const drawer = document.querySelector('#task-drawer[open]');
     const payload = retryPayload || {conversation_id: conversation, request_id: crypto.randomUUID(), command,
-      path: drawer?.dataset.agentPath || location.pathname + (['/tasks/', '/tasks/new/'].includes(location.pathname) ? location.search : ''),
+      path: drawer?.dataset.agentPath || location.pathname + location.search,
       ...(proposalId ? {proposal_id: proposalId} : {})};
     let result, navigating = false;
     try {

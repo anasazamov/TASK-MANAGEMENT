@@ -69,6 +69,11 @@ def lines(items):
 
 
 def render(name, data, focus='overview'):
+    if name == 'read_structure':
+        departments = {item['id']: item['name'] for item in data['departments']}
+        return 'Bo‘linmalar:\n'+lines(departments.values())+'\nXodimlar:\n'+lines([
+            p['full_name']+' — '+departments.get(p['department_id'], 'Bo‘linmasiz')+
+            '; '+p['role']+'; '+('faol' if p['is_active'] else 'bloklangan') for p in data['employees']])
     if name == 'list_people':
         if not data['people']:
             return 'Bu qidiruv bo‘yicha sizga ko‘rinadigan xodim topilmadi. Ism yoki familiyani aniqlashtiring.'

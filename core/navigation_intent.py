@@ -22,7 +22,8 @@ def open_word(token):
 
 def writes(command):
     return any(t == 'yangi' or (t.startswith(('yarat', 'ozgartir', 'uzaytir', 'tayinla', 'taqsimla',
-        'belgila', 'tasdiqla', 'yubor', 'tugat', 'bajarsin', 'almashtir', 'bekor', 'qosh')))
+        'belgila', 'tasdiqla', 'yubor', 'tugat', 'bajarsin', 'almashtir', 'bekor', 'qosh',
+        'tahrirla', 'blokla', 'faollashtir')))
         for t in words(command))
 
 

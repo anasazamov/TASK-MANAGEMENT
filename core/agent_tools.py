@@ -72,7 +72,40 @@ class Activity(Arguments):
     days: int = Field(ge=1, le=90)
 
 
+class EmployeeChange(Arguments):
+    employee_id: ID | None
+    username: str | None = Field(max_length=150)
+    full_name: str | None = Field(max_length=180)
+    job_title: str | None = Field(max_length=180)
+    department_id: ID | None
+    role: Literal['employee', 'head'] | None
+    is_active: bool | None
+
+
+class DepartmentChange(Arguments):
+    department_id: ID | None
+    name: str = Field(min_length=1, max_length=180)
+
+
+class TaskEdit(Arguments):
+    task_id: ID
+    title: str | None = Field(min_length=1, max_length=240)
+    description: str | None = Field(max_length=6000)
+    assignee_id: ID | None
+
+
+class AccountPage(Arguments):
+    page: Literal['password_change', 'employee_create', 'employee_edit', 'employee_password']
+    employee_id: ID | None
+
+
 TOOLS = {
+    'read_structure': (Arguments, 'Read authorized departments and employee accounts, including inactive accounts, roles, and department IDs. Required before employee/department changes.'),
+    'prepare_employee': (EmployeeChange, 'Prepare employee creation/update/block/unblock. Chair only. employee_id=null creates; creation requires username/full_name/department_id/role. Null fields on update stay unchanged. No passwords: created accounts require setting a password on the secure page.'),
+    'prepare_department': (DepartmentChange, 'Prepare creating a department (null ID) or renaming a real department. Chair only.'),
+    'prepare_task_edit': (TaskEdit, 'Prepare task title, description or assignee changes. Null fields stay unchanged. Manager only; closed tasks cannot change. Use prepare_action for deadlines/status.'),
+    'prepare_notifications_read': (Arguments, 'Prepare marking currently unread authorized notifications as read.'),
+    'navigate_account': (AccountPage, 'Open own password change or chair-only employee create/edit/password form. Passwords must be entered on the secure form, never in voice/chat.'),
     'search_tasks': (Search, 'Search visible tasks by title/content, status and assignee. Returns real IDs and codes; paginate with page.'),
     'get_task': (TaskID, 'Read one visible task, history, children, deadline request and permitted actions. task_id is the database ID, not the T-code.'),
     'get_summary': (Arguments, 'Get current counts and overdue tasks within the user role.'),
@@ -154,6 +187,40 @@ def title_matches(tokens, title):
             return False
         remaining.pop(index)
     return bool(tokens)
+
+
+def current_list_shortcut(user, command, context, history):
+    if 'current_list_tasks' not in context or navigation_intent.negative(command) or navigation_intent.writes(command):
+        return None
+    tokens = words(command)
+    last = history[-1] if history else {}
+    previous = last.get('task_choices', []) if last.get('verified') and last.get('decision_kind') == 'current_list' and last.get('navigation_pending') else []
+    fillers = navigation_intent.FILLER_WORDS | {'joriy', 'sahifadagi', 'sahifada', 'yerdagi', 'turgan', 'korinib', 'korinayotgan', 'topshiriqni', 'topshiriq', 'vazifani'}
+    explicit = (any(t in ('sahifadagi', 'sahifada', 'yerdagi') for t in tokens)
+                and any(t in ('topshiriqni', 'topshiriq', 'vazifani') for t in tokens)
+                and navigation_intent.navigation(command)
+                and all(t in fillers or navigation_intent.open_word(t) for t in tokens))
+    if not explicit and not previous:
+        return None
+    choices = context['current_list_tasks']
+    if not explicit:
+        choices = [item for item in choices if item['id'] in {p['id'] for p in previous}]
+        raw = command.strip().rstrip('.!?')
+        if raw.isascii() and raw.isdigit() and 1 <= int(raw) <= len(previous):
+            choices = [item for item in choices if item['id'] == previous[int(raw)-1]['id']]
+        else:
+            query = [t for t in tokens if t not in navigation_intent.FILLER_WORDS and not navigation_intent.open_word(t)]
+            choices = [item for item in choices if title_matches(query, item['title'])]
+            if not choices:
+                return None
+    if not choices:
+        return {'message': 'Joriy ro‘yxatda ochiladigan topshiriq yo‘q.', 'mode': 'shortcut'}
+    if len(choices) == 1:
+        return {**navigate(user, Navigate(page='task_detail', task_id=choices[0]['id'], status='all', query='', assignee_id=None)), 'mode': 'shortcut'}
+    choices = choices[:40]
+    rows = '\n'.join(f"{i}. {item['code']} — {item['title']}" for i, item in enumerate(choices, 1))
+    return {'message': 'Joriy sahifada bir nechta topshiriq bor:\n'+rows+'\nQaysi biri kerak?',
+            'task_choices': choices, 'decision_kind': 'current_list', 'navigation_pending': True, 'mode': 'shortcut'}
 
 
 def decision_shortcut(user, command, context, history):
@@ -327,6 +394,9 @@ def proposal_data(proposal):
 
 
 def prepare(user, conversation, name, args):
+    if name in ('prepare_employee', 'prepare_department', 'prepare_task_edit', 'prepare_notifications_read'):
+        from . import agent_admin
+        return agent_admin.prepare(user, conversation, name, args)
     if name == 'prepare_task':
         data, parent = new_task_data(user, args)
         preview = {'Amal': 'Quyi topshiriq yaratish' if parent else 'Topshiriq yaratish', 'Mazmun': data['title'],
@@ -354,7 +424,10 @@ def confirm(user, conversation, proposal_id, cancel=False):
     if not proposal:
         raise ValidationError('Tasdiqlanadigan amal topilmadi.')
     if proposal.state == 'completed':
-        get_task(user, proposal.result['task_id'])
+        if proposal.result.get('task_id'):
+            get_task(user, proposal.result['task_id'])
+        elif proposal.payload['tool'] in ('prepare_employee', 'prepare_department'):
+            require(user.is_active and user.is_chair)
         return proposal.result
     if proposal.state != 'pending' or proposal.expires_at <= timezone.now():
         raise ValidationError('Bu amal eskirgan yoki bekor qilingan. Buyruqni qayta bering.')
@@ -365,6 +438,9 @@ def confirm(user, conversation, proposal_id, cancel=False):
     require(user.is_active)
     name = proposal.payload['tool']
     args = TOOLS[name][0].model_validate(proposal.payload['args'])
+    if name in ('prepare_employee', 'prepare_department', 'prepare_task_edit', 'prepare_notifications_read'):
+        from . import agent_admin
+        return agent_admin.confirm(user, proposal, name, args)
     lock_id = getattr(args, 'task_id', None) or getattr(args, 'parent_id', None)
     if lock_id:
         Task.objects.select_for_update().get(pk=lock_id)
@@ -391,6 +467,9 @@ def execute(user, conversation, name, raw, references):
     if name not in TOOLS:
         raise ValidationError('Bunday agent amali mavjud emas.')
     args = TOOLS[name][0].model_validate(raw)
+    if name in ('read_structure', 'navigate_account'):
+        from . import agent_admin
+        return agent_admin.read_or_navigate(user, name, args)
     if name == 'search_tasks':
         tasks = filtered(user, args.query, args.status, args.assignee_id)
         count = tasks.count()

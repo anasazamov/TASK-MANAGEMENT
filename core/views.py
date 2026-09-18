@@ -92,21 +92,20 @@ def dashboard(request):
     })
 
 
-@login_required
-def task_list(request):
-    queryset = tasks_for(request.user)
+def task_list_context(user, params):
+    queryset = tasks_for(user)
     task_counts = counts(queryset)
-    active_filter = request.GET.get('filter', 'active')
+    active_filter = params.get('filter', 'active')
     if active_filter not in ['active', 'all', 'overdue', 'submitted', 'soon', 'undated', 'accepted', 'attention']:
         active_filter = 'active'
-    query = request.GET.get('q', '').strip()[:200]
+    query = params.get('q', '').strip()[:200]
     if query:
         queryset = queryset.filter(Q(title__icontains=query) | Q(assignee__full_name__icontains=query) | Q(description__icontains=query))
-    employee = request.GET.get('employee', '')
+    employee = params.get('employee', '')
     if employee.isdigit():
         queryset = queryset.filter(assignee_id=employee)
     # Escalations are computed before search so a parent's warning survives filtering.
-    task_map = {t.pk: t for t in with_escalations(tasks_for(request.user))}
+    task_map = {t.pk: t for t in with_escalations(tasks_for(user))}
     tasks = [task_map[t.pk] for t in queryset]
     if active_filter == 'active':
         tasks = [t for t in tasks if t.status != 'accepted']
@@ -122,9 +121,13 @@ def task_list(request):
             sections.append({'state': state, 'title': label, 'tasks': rows})
     filters = [(key, label, task_counts[key]) for key, label in [('active', 'Faol'), ('overdue', 'Muddati o‘tgan'),
         ('submitted', 'Tasdiq kutilmoqda'), ('soon', 'Muddati yaqin'), ('undated', 'Muddatsiz'), ('accepted', 'Qabul qilingan'), ('all', 'Barchasi')]]
-    return render(request, 'core/tasks.html', {'page_title': 'Topshiriqlar', 'subtitle': 'Barcha topshiriqlar va quyi taqsimotlar',
-        'sections': sections, 'filters': filters, 'active_filter': active_filter, 'query': query, 'employee_filter': employee, 'total': len(tasks)})
+    return {'page_title': 'Topshiriqlar', 'subtitle': 'Barcha topshiriqlar va quyi taqsimotlar',
+        'sections': sections, 'filters': filters, 'active_filter': active_filter, 'query': query, 'employee_filter': employee, 'total': len(tasks)}
 
+
+@login_required
+def task_list(request):
+    return render(request, 'core/tasks.html', task_list_context(request.user, request.GET))
 
 @login_required
 def task_detail(request, pk):

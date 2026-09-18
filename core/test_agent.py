@@ -91,6 +91,41 @@ class AgentTests(TestCase):
                     self.assertEqual(self.message(command).json()['navigation']['url'], '/')
             model.assert_not_called()
 
+    def test_current_filtered_page_single_task_opens_without_model(self):
+        with patch('core.voice.OpenAI') as model:
+            result = self.message('Joriy sahifadagi topshiriqni ochib bering.',
+                path='/tasks/?filter=all&q=Hisobot').json()
+        self.assertEqual(result['navigation']['url'], self.task.get_absolute_url())
+        model.assert_not_called()
+
+    def test_current_page_multiple_tasks_requires_and_remembers_selection(self):
+        second = Task.objects.create(issuer=self.head, assignee=self.employee, title='Ikkinchi loyiha')
+        with patch('core.voice.OpenAI') as model:
+            result = self.message('Joriy sahifadagi topshiriqni och', path='/tasks/?filter=all').json()
+            self.assertNotIn('navigation', result)
+            self.assertEqual({t['id'] for t in result['task_choices']}, {self.task.pk, second.pk})
+            chosen = result['task_choices'][1]
+            result = self.message('2', path='/tasks/?filter=all').json()
+            self.assertEqual(result['navigation']['url'], f"/tasks/{chosen['id']}/")
+            model.assert_not_called()
+
+    def test_current_page_empty_does_not_open_foreign_or_unfiltered_task(self):
+        with patch('core.voice.OpenAI') as model:
+            result = self.message('Joriy sahifadagi topshiriqni och', path='/tasks/?q=yoq').json()
+        self.assertNotIn('navigation', result)
+        model.assert_not_called()
+
+    def test_page_context_reads_authorized_main_only_and_keeps_filters(self):
+        from .agent import current_context
+        result = current_context(self.head, '/tasks/?filter=all&q=Hisobot')
+        self.assertIn(self.task.title, result['current_page']['text'])
+        self.assertNotIn(self.foreign.title, result['current_page']['text'])
+        self.assertNotIn('Suhbat va ovoz', result['current_page']['text'])
+        self.assertEqual([t['id'] for t in result['current_list_tasks']], [self.task.pk])
+        self.assertEqual(current_context(self.head, '/account/password/')['current_page'], {})
+        with self.assertRaises(PermissionDenied):
+            current_context(self.employee, '/structure/')
+
     def test_deadline_card_navigation_is_scoped_and_never_approves(self):
         from .models import DeadlineRequest
         self.task.title = 'Registon yo‘nalishi kommunikatsiya tarmoqlari loyiha smetasi'

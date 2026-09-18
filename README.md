@@ -50,7 +50,7 @@ Huquqlar faqat menyu bilan cheklanmaydi: barcha POST amallar serverda tekshirila
 
 **STT va TTS — VoiceLab; LLM — OpenAI.** Global agent barcha autentifikatsiyalangan sahifalarda ishlaydi. Oqim: brauzerda yozish → Django → VoiceLab transkripsiyasi → OpenAI Responses function calling → rolga mos Django funksiyalari → sahifa ochish yoki amal loyihasini tasdiqlash → VoiceLab ovozli javobi. Barchasi shu Django monolit ichida.
 
-Agent topshiriqlarni qidiradi, sanaydi, tafsilot/tarix, xabarnoma va xodimlarni o‘qiydi; filtrlangan ro‘yxat yoki kerakli sahifani ochadi. Topshiriq yaratish/taqsimlash, izoh, ijro topshirish/qabul qilish/qaytarish, muddatni belgilash/uzaytirish/tasdiqlash/rad etish va hisobot amallari mavjud. Hisob/parol boshqaruvi va ma’lumot o‘chirish agent funksiyasiga kirmaydi.
+Agent topshiriqlarni qidiradi, sanaydi, tafsilot/tarix, xabarnoma va xodimlarni o‘qiydi; filtrlangan ro‘yxat yoki kerakli sahifani ochadi. Topshiriq yaratish/taqsimlash, izoh, ijro topshirish/qabul qilish/qaytarish, muddatni belgilash/uzaytirish/tasdiqlash/rad etish va hisobot amallari mavjud. Rais uchun xodim yaratish/tahrirlash/bloklash/faollashtirish, bo‘linma yaratish/nomini o‘zgartirish ham mavjud. Topshiriq mazmuni va ijrochisini boshqaruvchi tahrirlaydi. Xabarnomalarni o‘qilgan deb belgilash mumkin. Barcha o‘zgarishlar avval ko‘rib chiqish uchun tayyorlanadi, keyin tasdiqlanadi. Parollar faqat agent ochadigan xavfsiz formada kiritiladi; yangi hisob parol belgilanguncha kira olmaydi. Ma’lumot o‘chirish amali mavjud emas.
 
 Misollar: «Kechikkan topshiriqlarni ko‘rsat», «T-104 ni och», «Xalimovga loyiha hisobotini ertaga 18:00 gacha tayyorlashni topshir», «Shu topshiriq bo‘yicha hisobot so‘ra».
 
@@ -145,3 +145,7 @@ Bu buyruq muddat yaqinlashishi, buzilishi, zanjir bo‘yicha eskalatsiya va eski
 6. `python manage.py check --deploy`, DB backup, login rate limiting (reverse proxy darajasida), log monitoring va `send_reminders` schedulerini sozlang.
 
 Production HTTPS cookie/redirect/HSTS sozlamalari `DEBUG=0`da yoqiladi. Static fayllarni WhiteNoise beradi. PostgreSQL va haqiqiy HTTPS serverga deploy lokal tekshiruv doirasiga kirmaydi.
+
+### Agentning sahifa konteksti
+
+Agent har so‘rovda ruxsatli sahifaning asosiy matni va havolalarini serverdan qayta o‘qiydi: panel, topshiriqlar, tafsilot, xodimlar, struktura, zanjir, tarix, xabarnomalar va yaratish/tahrirlash formalari. Joriy ro‘yxat UI bilan bitta filtr funksiyasidan olinadi. Bitta topshiriq bo‘lsa “joriy sahifadagi topshiriqni och” uni ochadi; ko‘p bo‘lsa haqiqiy nomzodlardan tanlov so‘raladi. Brauzerda saqlanmagan forma qiymatlari yoki parollar modelga yuborilmaydi. Sahifa matni 24 000 belgi bilan chegaralangan; batafsil ma’lumot alohida o‘qish vositalaridan olinadi.

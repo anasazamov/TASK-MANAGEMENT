@@ -20,6 +20,13 @@ def notify(task, users, title):
         Notification.objects.create(task=task, user_id=user_id, title=title)
 
 
+def mark_seen(task, user):
+    # update() leaves updated_at alone: agent proposals use it as a change snapshot.
+    if task.assignee_id == user.pk and task.seen_at is None:
+        task.seen_at = timezone.now()
+        Task.objects.filter(pk=task.pk, seen_at__isnull=True).update(seen_at=task.seen_at)
+
+
 def active_descendants(task):
     pending, seen, result = [task.pk], {task.pk}, []
     while pending:
@@ -72,6 +79,7 @@ def task_action(user, task_id, action, text='', due_at=None):
         raise ValidationError('Matn 10 000 belgidan oshmasligi kerak.')
     manager = can_manage(user, task)
     owner = task.assignee_id == user.pk
+    mark_seen(task, user)
     if action == 'comment':
         if not text:
             raise ValidationError('Izoh matnini kiriting.')

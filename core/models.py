@@ -99,6 +99,7 @@ class Task(models.Model):
     accepted_at = models.DateTimeField(null=True, blank=True)
     report_requested_at = models.DateTimeField(null=True, blank=True)
     last_report_at = models.DateTimeField(null=True, blank=True)
+    seen_at = models.DateTimeField('Ijrochi tanishgan vaqt', null=True, blank=True)
     objects = TaskQuerySet.as_manager()
 
     class Meta:

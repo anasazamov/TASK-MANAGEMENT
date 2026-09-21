@@ -25,6 +25,14 @@ python -m venv .venv
 
 Brauzer: http://127.0.0.1:8000
 
+**Lokal tarmoqdan (boshqa kompyuterlardan) ovoz bilan ishlash.** Brauzer mikrofonni faqat HTTPS yoki `localhost`da beradi, shuning uchun `http://192.168...` orqali mikrofon ishlamaydi. HTTPS bilan ishga tushiring:
+
+```powershell
+.\.venv\Scripts\python.exe serve.py --host 0.0.0.0 --https
+```
+
+Server `certs/` papkasida shu kompyuter IP manzillari uchun o‘z-o‘zidan imzolangan sertifikat yaratadi va 443-portda ishlaydi (`https://192.168.x.x`). 80-portga kelgan `http://` so‘rovlar avtomatik `https://` ga yo‘naltiriladi. `--https` bilan `--port 80` bermang. Birinchi kirishda brauzer «Maxfiy emas» ogohlantirishini ko‘rsatadi: «Qo‘shimcha» → «Davom etish» bosiladi, shundan keyin mikrofon ishlaydi. Qo‘shimcha IP/domen: `--san nom`; o‘z sertifikatingiz: `--ssl-certfile`/`--ssl-keyfile`.
+
 `serve.py` bitta Uvicorn/ASGI jarayonida Django sahifalari, HTTP API va jonli WebSocket ovozini beradi. Oddiy `manage.py runserver` yoki Waitress WebSocket rejimini bermaydi.
 
 `seed_demo` bo‘sh development bazaga 25 xodim, 14 bo‘linma (rahbariyat bilan), 21 topshiriq, tarix va xabarnomalar qo‘shadi. Sana va vaqtlar ishga tushirilgan vaqtga nisbatan hisoblanadi. Uchta test login — `rais`, `boshliq`, `xodim`; tasodifiy parol terminalda ko‘rsatiladi. Boshqa namuna xodimlarining paroli mavjud emas; rais struktura orqali ularni belgilashi mumkin. Qayta ishga tushirish mavjud yozuvlar yoki parollarni o‘zgartirmaydi. Namuna F.I.Sh.larining ayrimlari dizayndagi initsiallar asosida tuzilgan, tashkilotning tasdiqlangan xodimlar reyestri emas.
@@ -42,6 +50,7 @@ Admin kerak bo‘lsa: `python manage.py createsuperuser`. Oddiy rais hisobi Djan
 - Muddat so‘rovi → tasdiqlash/rad etish, quyi va yuqori muddatlar mosligini tekshirish.
 - Muddatsiz vazifalar 14 kundan keyin diqqat talab qiladigan vazifalarda ham ko‘rinadi.
 - Xabarnomalar, xronologik tarix va ko‘p darajali delegatsiya zanjiri.
+- «Xodimlar» sahifasida statistika jadvali: topshiriqlar soni, bajarilmoqda (jarayonda yoki tasdiq kutilmoqda), bajarilmagan (muddati o‘tgan) va tanishilmagan (ijrochi hali ochmagan) topshiriqlar. Hafta tanlansa, shu haftada berilgan topshiriqlar hisoblanadi; jadval Excel (`.xlsx`) sifatida yuklab olinadi. Rahbar faqat o‘ziga ko‘rinadigan topshiriqlar statistikasini ko‘radi.
 - Responsive sahifalar, klaviatura bilan ishlaydigan tafsilotlar paneli va tungi rejim.
 
 Huquqlar faqat menyu bilan cheklanmaydi: barcha POST amallar serverda tekshiriladi. Quyi vazifalari yopilmagan asosiy vazifa ijroga topshirilmaydi. Xodim o‘z ijrosini tasdiqlay olmaydi. Quyi topshiriq muddati barcha yuqori vazifalar muddatidan kech bo‘lishi mumkin emas. Faol topshiriqlari bo‘lgan xodim boshqa bo‘linmaga ko‘chirilmaydi. Tarix UI va Django admin orqali tahrirlanmaydi; baza administratori darajasida kriptografik o‘zgarmaslik da’vo qilinmaydi.

@@ -1,1 +1,18 @@
-{% extends 'base.html' %}{% load ui %}{% block content %}<div class="section-heading"><h2>Xodimlar yuklamasi <span class="count-pill">{{ employees|length }}</span></h2>{% if user.is_chair %}<a class="text-link" href="{% url 'structure' %}">Xodimlarni boshqarish {% icon 'arrow' %}</a>{% endif %}</div><div class="card">{% for employee in employees %}{% include 'core/_employee_row.html' %}{% empty %}<div class="empty-state"><p>Hozircha topshiriq biriktirilgan xodim yo‘q.</p></div>{% endfor %}</div>{% endblock %}
+{% extends 'base.html' %}{% load ui %}{% block content %}
+<div class="section-heading"><h2>Xodimlar statistikasi <span class="count-pill">{{ rows|length }}</span></h2>{% if user.is_chair %}<a class="text-link" href="{% url 'structure' %}">Xodimlarni boshqarish {% icon 'arrow' %}</a>{% endif %}</div>
+<div class="list-toolbar report-toolbar">
+  <form class="report-form" method="get"><label for="report-week">Hafta</label><input id="report-week" type="week" name="week" value="{{ week|default:default_week }}" required><button class="button secondary" type="submit">Ko‘rsatish</button></form>
+  <span class="muted">Davr: <strong>{{ period_label }}</strong></span>
+  {% if week %}<a class="text-link" href="{% url 'employees' %}">Barcha vaqt</a>{% endif %}
+  <a class="button primary report-download" href="{% url 'employees' %}?{% if week %}week={{ week }}&amp;{% endif %}format=xlsx">Excel yuklab olish</a>
+</div>
+<div class="card stats-scroll"><table class="stats-table">
+  <thead><tr><th>T/R</th><th class="name">F.I.Sh.</th><th>Topshiriqlar soni</th><th class="progress">Bajarilmoqda</th><th class="late">Bajarilmagan</th><th>Tanishilmagan topshiriqlar</th></tr></thead>
+  <tbody>{% for row in rows %}<tr>
+    <td>{{ forloop.counter }}</td>
+    <td class="name"><a href="{% url 'tasks' %}?employee={{ row.assignee_id }}&amp;filter=all">{{ row.assignee__full_name }}</a></td>
+    <td>{{ row.total }}</td><td class="progress">{{ row.in_progress }}</td><td class="late">{{ row.overdue }}</td><td>{{ row.unseen }}</td>
+  </tr>{% empty %}<tr><td colspan="6" class="empty">{% if week %}Bu haftada berilgan topshiriq yo‘q.{% else %}Hozircha topshiriq biriktirilgan xodim yo‘q.{% endif %}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="help-text stats-note">Bajarilmoqda — jarayondagi (muddati o‘tmagan) va tasdiq kutilayotgan; Bajarilmagan — muddati o‘tgan; Tanishilmagan — ijrochi hali ochmagan topshiriqlar. Hafta tanlansa, shu haftada berilgan topshiriqlar hozirgi holati bilan hisoblanadi.</p>
+{% endblock %}

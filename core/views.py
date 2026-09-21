@@ -9,16 +9,17 @@ from django.contrib.auth.views import LoginView
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
+from . import reports
 from .forms import ActionForm, DepartmentForm, EmployeeEditForm, EmployeeForm, LoginForm, TaskForm
 from .models import DeadlineRequest, Department, Event, Task, User
 from .permissions import can_delegate, can_manage
-from .services import create_task, require, task_action
+from .services import create_task, mark_seen, require, task_action
 
 
 class SignInView(LoginView):
@@ -132,6 +133,7 @@ def task_list(request):
 @login_required
 def task_detail(request, pk):
     task = get_object_or_404(tasks_for(request.user), pk=pk)
+    mark_seen(task, request.user)
     all_tasks = {t.pk: t for t in with_escalations(tasks_for(request.user))}
     task.escalations = all_tasks[task.pk].escalations
     ancestor_rows = [{'task': t, 'visible': tasks_for(request.user).filter(pk=t.pk).exists()} for t in task.ancestors()]
@@ -187,7 +189,17 @@ def perform_action(request, pk):
 @login_required
 def employees(request):
     require(request.user.can_assign)
-    return render(request, 'core/employees.html', {'page_title': 'Xodimlar', 'subtitle': 'Topshiriq yuklamasi va muddat holati', 'employees': workload(request.user)})
+    week = request.GET.get('week', '')
+    period = reports.parse_week(week)
+    rows = reports.employee_stats(request.user, period)
+    if request.GET.get('format') == 'xlsx':
+        name = f"xodimlar-statistikasi-{week if period else 'barcha'}-{timezone.localdate():%Y%m%d}.xlsx"
+        response = HttpResponse(reports.workbook(rows, period, request.user.short_name),
+                                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="{name}"'
+        return response
+    return render(request, 'core/employees.html', {'page_title': 'Xodimlar', 'subtitle': 'Topshiriq yuklamasi va muddat holati',
+        'rows': rows, 'week': week if period else '', 'default_week': reports.current_week(), 'period_label': reports.period_label(period)})
 
 
 @login_required

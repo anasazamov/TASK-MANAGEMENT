@@ -108,7 +108,7 @@ def apply(user, name, args):
             target=assignees_for(user).filter(pk=args.assignee_id).first()
             require(target is not None)
             if task.children.exists():raise ValidationError('Quyi taqsimotlari bor topshiriqning ijrochisini almashtirish mumkin emas.')
-            task.assignee=target
+            task.assignee=target;task.seen_at=None
         if args.title is not None:task.title=args.title.strip()
         if args.description is not None:task.description=args.description
         task.full_clean();task.save()

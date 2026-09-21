@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from .models import Department, Task, User
-from .permissions import assignees_for
+from .permissions import assignees_for, controllers_for
 from .services import validate_deadline
 
 
@@ -27,10 +27,13 @@ class TaskForm(forms.ModelForm):
 
     class Meta:
         model = Task
-        fields = ['title', 'description', 'assignee', 'due_at']
+        fields = ['title', 'description', 'assignee', 'due_at', 'letter_number', 'letter_date', 'letter_sender']
         labels = {'assignee': 'Ijrochi'}
         widgets = {'description': forms.Textarea(attrs={'rows': 3, 'placeholder': 'Kutilayotgan natija va qo‘shimcha talablar…'}),
-                   'title': forms.TextInput(attrs={'placeholder': 'Nima bajarilishi kerak?'})}
+                   'title': forms.TextInput(attrs={'placeholder': 'Nima bajarilishi kerak?'}),
+                   'letter_number': forms.TextInput(attrs={'placeholder': 'Masalan: 01-12/345'}),
+                   'letter_date': forms.DateInput(attrs={'type': 'date'}),
+                   'letter_sender': forms.TextInput(attrs={'placeholder': 'Xat kelgan tashkilot yoki shaxs'})}
 
     def __init__(self, *args, user, parent=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -38,6 +41,8 @@ class TaskForm(forms.ModelForm):
         self.fields['assignee'].queryset = assignees_for(user)
         self.fields['assignee'].empty_label = 'Ijrochini tanlang'
         self.fields['assignee'].label_from_instance = lambda u: f'{u.short_name} — {u.job_title}'
+        for name in ('letter_number', 'letter_date', 'letter_sender'):
+            self.fields[name].required = False
 
     def clean(self):
         data = super().clean()
@@ -68,6 +73,23 @@ class ParticipantForm(forms.Form):
         self.fields['person'].label_from_instance = lambda u: f'{u.short_name} — {u.job_title}'
 
 
+class ControllerForm(forms.Form):
+    person = forms.ModelChoiceField(queryset=User.objects.none(), label='Nazoratchi', empty_label='Xodimni tanlang')
+    note = forms.CharField(label='Nazorat yo‘nalishi', max_length=240, required=False, strip=True,
+                           widget=forms.TextInput(attrs={'placeholder': 'Ixtiyoriy: nimani kuzatadi'}))
+
+    def __init__(self, *args, user, task, **kwargs):
+        super().__init__(*args, **kwargs)
+        taken = task.participants.values('user')
+        self.fields['person'].queryset = controllers_for(user).exclude(
+            pk__in=[task.assignee_id, task.issuer_id]).exclude(pk__in=taken)
+        self.fields['person'].label_from_instance = lambda u: f'{u.short_name} — {u.job_title}'
+
+
+class AttachmentForm(forms.Form):
+    file = forms.FileField(label='Fayl (xat nusxasi yoki hujjat)')
+
+
 class PartActionForm(forms.Form):
     action = forms.ChoiceField(choices=[(a, a) for a in ['submit_part', 'accept_part', 'return_part', 'remove']])
     text = forms.CharField(required=False, max_length=10000, strip=True)
@@ -89,7 +111,8 @@ class EmployeeForm(UserCreationForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['role'].choices = [(User.Role.EMPLOYEE, 'Xodim'), (User.Role.HEAD, 'Bo‘lim boshlig‘i')]
+        self.fields['role'].choices = [(User.Role.EMPLOYEE, 'Xodim'), (User.Role.HEAD, 'Bo‘lim boshlig‘i'),
+                                       (User.Role.OFFICE, 'Devonxona mudiri'), (User.Role.SECRETARY, 'Kotiba')]
         self.fields['department'].required = True
         self.fields['password1'].label = 'Vaqtinchalik parol'
         self.fields['password2'].label = 'Parolni takrorlang'
@@ -121,7 +144,8 @@ class EmployeeEditForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['role'].choices = [(User.Role.EMPLOYEE, 'Xodim'), (User.Role.HEAD, 'Bo‘lim boshlig‘i')]
+        self.fields['role'].choices = [(User.Role.EMPLOYEE, 'Xodim'), (User.Role.HEAD, 'Bo‘lim boshlig‘i'),
+                                       (User.Role.OFFICE, 'Devonxona mudiri'), (User.Role.SECRETARY, 'Kotiba')]
         self.fields['department'].required = True
 
     def clean(self):

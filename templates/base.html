@@ -24,7 +24,7 @@
   <nav aria-label="Asosiy menyu">
     <a class="nav-link {% if current_page == 'dashboard' %}selected{% endif %}" href="{% url 'dashboard' %}">{% icon 'grid' %}<span>{% if user.role == 'employee' %}Mening panelim{% else %}Boshqaruv paneli{% endif %}</span></a>
     <a class="nav-link {% if current_page == 'tasks' or current_page == 'task_detail' or current_page == 'task_create' %}selected{% endif %}" href="{% url 'tasks' %}">{% icon 'tasks' %}<span>Topshiriqlar</span><span class="nav-count">{{ nav_active_count }}</span></a>
-    {% if user.can_assign %}<a class="nav-link {% if current_page == 'employees' %}selected{% endif %}" href="{% url 'employees' %}">{% icon 'users' %}<span>{% if user.is_chair %}Xodimlar{% else %}Bo‘lim xodimlari{% endif %}</span></a>{% endif %}
+    {% if user.can_assign or user.can_oversee %}<a class="nav-link {% if current_page == 'employees' %}selected{% endif %}" href="{% url 'employees' %}">{% icon 'users' %}<span>{% if user.is_chair or user.can_oversee %}Xodimlar{% else %}Bo‘lim xodimlari{% endif %}</span></a>{% endif %}
     {% if user.is_chair %}<a class="nav-link {% if current_page == 'structure' %}selected{% endif %}" href="{% url 'structure' %}">{% icon 'structure' %}<span>Struktura</span></a>{% endif %}
     <div class="nav-caption">NAZORAT</div>
     {% if user.can_assign %}<a class="nav-link {% if current_page == 'chains' %}selected{% endif %}" href="{% url 'chains' %}">{% icon 'link' %}<span>Nazorat zanjiri</span></a>{% endif %}

@@ -44,7 +44,12 @@ Admin kerak bo‘lsa: `python manage.py createsuperuser`. Oddiy rais hisobi Djan
 - Login/logout, parolni o‘zgartirish, xodim parolini tiklash va bloklash.
 - Rais: tashkilot bo‘yicha ko‘rish, topshiriq berish, qarorlar, bo‘linma/xodim boshqaruvi.
 - Bo‘lim boshlig‘i: o‘z bo‘linmasidagi topshiriqlar, o‘z xodimlariga topshiriq berish, o‘ziga berilgan vazifani taqsimlash.
+- Devonxona mudiri: kelgan xat bo‘yicha **faqat bo‘lim boshliqlariga** topshiriq beradi va o‘zi bergan topshiriqlar ijrosini kuzatadi. Boshqa bo‘limlarning ichki topshiriqlarini ko‘rmaydi.
+- Kotiba: butun tashkilot bo‘yicha topshiriqlar va «Xodimlar» statistikasini **ko‘radi**, lekin topshiriq bermaydi va qaror qabul qilmaydi. Nazoratchi qilib belgilansa, izoh yozadi va hisobot so‘raydi.
 - Xodim: faqat o‘z topshiriqlari, izoh, ijro, haftalik hisobot, muddat uzaytirish so‘rovi.
+- Xat rekvizitlari: topshiriqqa xat raqami, sanasi va kimdan kelgani yoziladi; ular topshiriq sahifasida ko‘rinadi.
+- Fayl biriktirish: topshiriqqa 25 MB gacha hujjat (PDF, Word, Excel, rasm, arxiv) biriktiriladi, bittasiga 20 tagacha. Fayllar bazada emas, S3/MinIO’da saqlanadi (`S3_ENDPOINT_URL` sozlansa); havolalar imzolangan va 15 daqiqa amal qiladi. Sozlanmagan bo‘lsa, fayllar serverdagi `media/` papkasida turadi. Faylni topshiriq ishtirokchilari biriktiradi, o‘chirishni esa yuklagan shaxs yoki rahbar bajaradi.
+- Nazoratchi: rahbar topshiriqqa nazoratchi belgilaydi. U topshiriqni ko‘radi, izoh yozadi va haftalik hisobot so‘raydi, lekin ijroni qabul qilmaydi, muddat o‘zgartirmaydi va ijro topshirmaydi. Bo‘lim boshlig‘i o‘z bo‘limi xodimini, kotibani yoki devonxonani; rais va devonxona esa istalgan xodimni nazoratchi qila oladi.
 - Faol, kechikkan, muddati yaqin, tasdiq kutilayotgan, muddatsiz va qabul qilingan vazifalar filtrlari; matn va xodim bo‘yicha qidirish.
 - Qo‘shimcha ijrochilar: topshiriqni bergan rahbar (yoki rais) mavjud topshiriqqa xodim qo‘shib, unga aniq ijro qismini biriktiradi. Qo‘shimcha ijrochi topshiriqni ko‘radi, izoh va hisobot yozadi hamda **faqat o‘z qismini** topshiradi; rahbar shu qismni qabul qiladi yoki sabab bilan qaytaradi. Barcha qismlar qabul qilinmaguncha asosiy ijrochi topshiriq ijrosini topshira olmaydi. Xodim faqat yangi topshiriq berish doirasidan tanlanadi; asosiy ijrochi, topshiriq bergan shaxs va rais qo‘shilmaydi.
 - Ijro topshirish → rahbarning qabul qilishi yoki majburiy sabab bilan qaytarishi.

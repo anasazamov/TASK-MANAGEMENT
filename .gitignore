@@ -224,3 +224,4 @@ staticfiles/
 server.*.log
 private_models/
 certs/
+media/

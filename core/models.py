@@ -25,6 +25,8 @@ class User(AbstractUser):
     class Role(models.TextChoices):
         CHAIR = 'chair', 'Boshqaruv raisi'
         HEAD = 'head', 'Bo‘lim boshlig‘i'
+        OFFICE = 'office', 'Devonxona mudiri'
+        SECRETARY = 'secretary', 'Kotiba'
         EMPLOYEE = 'employee', 'Xodim'
 
     full_name = models.CharField('F.I.Sh.', max_length=180)
@@ -51,8 +53,21 @@ class User(AbstractUser):
         return self.role == self.Role.CHAIR
 
     @property
+    def is_office(self):
+        return self.role == self.Role.OFFICE
+
+    @property
+    def is_secretary(self):
+        return self.role == self.Role.SECRETARY
+
+    @property
     def can_assign(self):
-        return self.role in [self.Role.CHAIR, self.Role.HEAD]
+        return self.role in [self.Role.CHAIR, self.Role.HEAD, self.Role.OFFICE]
+
+    @property
+    def can_oversee(self):
+        """Sees every task and the employee statistics, but decides nothing."""
+        return self.role in [self.Role.CHAIR, self.Role.SECRETARY]
 
     def __str__(self):
         return self.short_name
@@ -71,8 +86,11 @@ class TaskQuerySet(models.QuerySet):
     def visible_to(self, user):
         if not user.is_authenticated:
             return self.none()
-        if user.is_chair:
+        if user.can_oversee:
             return self
+        if user.is_office:
+            # The office registers incoming letters; it follows what it sent out.
+            return self.filter(Q(issuer=user) | Q(assignee=user) | Q(pk__in=TaskParticipant.objects.filter(user=user).values('task')))
         # Subquery, not a join: an extra participant must not duplicate task rows.
         parts = TaskParticipant.objects.filter(user=user).values('task')
         if user.role == User.Role.HEAD and user.department_id:
@@ -105,6 +123,9 @@ class Task(models.Model):
     report_requested_at = models.DateTimeField(null=True, blank=True)
     last_report_at = models.DateTimeField(null=True, blank=True)
     seen_at = models.DateTimeField('Ijrochi tanishgan vaqt', null=True, blank=True)
+    letter_number = models.CharField('Xat raqami', max_length=60, blank=True)
+    letter_date = models.DateField('Xat sanasi', null=True, blank=True)
+    letter_sender = models.CharField('Xat kimdan kelgan', max_length=180, blank=True)
     objects = TaskQuerySet.as_manager()
 
     class Meta:
@@ -177,16 +198,45 @@ class Task(models.Model):
         return list(reversed(result))
 
 
+def attachment_path(instance, filename):
+    return f'tasks/{instance.task_id}/{uuid.uuid4().hex}/{filename}'[:300]
+
+
+class TaskAttachment(models.Model):
+    """Incoming letters and related documents, stored in S3/MinIO, not in the database."""
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='attachments')
+    file = models.FileField('Fayl', upload_to=attachment_path, max_length=300)
+    name = models.CharField(max_length=180)
+    size = models.PositiveBigIntegerField()
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['pk']
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def size_label(self):
+        return f'{self.size/1024:.0f} KB' if self.size < 1024*1024 else f'{self.size/1024/1024:.1f} MB'
+
+
 class TaskParticipant(models.Model):
-    """An additional executor responsible for one named part of the same task."""
+    """An extra executor with a named part, or a controller who only follows the task."""
     class Status(models.TextChoices):
         ACTIVE = 'active', 'Bajarilmoqda'
         SUBMITTED = 'submitted', 'Topshirildi'
         ACCEPTED = 'accepted', 'Qabul qilindi'
 
+    class Kind(models.TextChoices):
+        EXECUTOR = 'executor', 'Qo‘shimcha ijrochi'
+        CONTROLLER = 'controller', 'Nazoratchi'
+
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='participants')
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='task_parts')
-    part = models.CharField('Ijro qismi', max_length=240)
+    kind = models.CharField(max_length=12, choices=Kind.choices, default=Kind.EXECUTOR)
+    part = models.CharField('Ijro qismi', max_length=240, blank=True)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.ACTIVE)
     added_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
     created_at = models.DateTimeField(default=timezone.now)

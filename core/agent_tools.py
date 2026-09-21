@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .forms import TaskForm
 from .models import AgentProposal, Event, Task, User
-from .permissions import assignees_for, can_delegate, can_manage
+from .permissions import assignees_for, can_control, can_delegate, can_manage
 from .person_search import find_people
 from .person_search import words, variants
 from . import navigation_intent
@@ -78,7 +78,7 @@ class EmployeeChange(Arguments):
     full_name: str | None = Field(max_length=180)
     job_title: str | None = Field(max_length=180)
     department_id: ID | None
-    role: Literal['employee', 'head'] | None
+    role: Literal['employee', 'head', 'office', 'secretary'] | None
     is_active: bool | None
 
 
@@ -135,8 +135,10 @@ def get_task(user, pk):
 
 
 def people(user):
-    if user.is_chair:
+    if user.is_chair or user.can_oversee:
         return User.objects.filter(is_active=True)
+    if user.is_office:
+        return User.objects.filter(Q(role=User.Role.HEAD) | Q(pk=user.pk), is_active=True)
     if user.can_assign:
         return User.objects.filter(Q(department_id=user.department_id) | Q(pk=user.pk), is_active=True) if user.department_id else User.objects.filter(pk=user.pk)
     return User.objects.filter(pk=user.pk)
@@ -155,8 +157,11 @@ def actions_for(user, task):
         actions.append('report')
         if task.status == 'active':
             actions.extend(['submit', 'request_deadline'])
-    if can_manage(user, task):
+    if can_control(user, task):
         actions.append('request_report')
+    if can_manage(user, task):
+        if 'request_report' not in actions:
+            actions.append('request_report')
         if task.status == 'active':
             actions.append('set_deadline')
         if task.status == 'submitted':
@@ -297,7 +302,9 @@ def filtered(user, query='', status='all', assignee_id=None):
 def navigate(user, args):
     if args.page == 'structure':
         require(user.is_chair)
-    if args.page in ('employees', 'chains', 'task_create'):
+    if args.page == 'employees':
+        require(user.can_assign or user.can_oversee)
+    if args.page in ('chains', 'task_create'):
         require(user.can_assign)
     if args.page == 'task_detail':
         task = get_task(user, args.task_id)

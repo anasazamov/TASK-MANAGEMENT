@@ -50,7 +50,8 @@ class Command(BaseCommand):
             ('Raqamlashtirish va IT', 'azamov', 'A’zamov Aziz Akmalovich', 'employee', 'IT bo‘limi bosh mutaxassisi'),
             ('Yuridik bo‘lim', 'bayzakov', 'Bayzakov Doston Ilhomovich', 'head', 'Yuridik bo‘lim boshlig‘i'),
             ('Inson resurslari', 'xolmuradov', 'Xolmuradov Zafar Ismatovich', 'head', 'Inson resurslari xizmati rahbari'),
-            ('Devonxona', 'isomiddinov', 'Isomiddinov Islom Murodovich', 'head', 'Devonxona mudiri'),
+            ('Devonxona', 'isomiddinov', 'Isomiddinov Islom Murodovich', 'office', 'Devonxona mudiri'),
+            ('Devonxona', 'kotiba', 'Narmuradova Dilbar Kadirovna', 'secretary', 'Rais kotibasi'),
             ('Turizm loyiha ofisi', 'oblonov', 'Oblonov Shavkat Sobirovich', 'head', 'Turizm loyiha ofisi yetakchi mutaxassisi'),
         ]
         users = {'rais': chair}

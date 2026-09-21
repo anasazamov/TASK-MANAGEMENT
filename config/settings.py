@@ -67,10 +67,31 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
+MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_URL = '/media/'
+# Task files live in S3/MinIO when an endpoint is configured; locally they stay on disk.
+S3_ENDPOINT_URL = os.getenv('S3_ENDPOINT_URL', '').strip()
 STORAGES = {
     'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
     'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
 }
+if S3_ENDPOINT_URL:
+    STORAGES['default'] = {'BACKEND': 'storages.backends.s3.S3Storage', 'OPTIONS': {
+        'endpoint_url': S3_ENDPOINT_URL,
+        'access_key': os.getenv('S3_ACCESS_KEY', '').strip(),
+        'secret_key': os.getenv('S3_SECRET_KEY', '').strip(),
+        'bucket_name': os.getenv('S3_BUCKET', 'topshiriqlar').strip(),
+        'region_name': os.getenv('S3_REGION', 'us-east-1').strip(),
+        'addressing_style': os.getenv('S3_ADDRESSING_STYLE', 'path').strip(),
+        'querystring_auth': True,      # Private bucket: links are signed, never public.
+        'querystring_expire': 900,
+        'file_overwrite': False,
+        'default_acl': None,
+        'signature_version': 's3v4',
+    }}
+TASK_FILE_MAX_BYTES = 25 * 1024 * 1024
+TASK_FILE_EXTENSIONS = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt',
+                        '.rtf', '.csv', '.jpg', '.jpeg', '.png', '.heic', '.zip', '.rar', '.7z'}
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'

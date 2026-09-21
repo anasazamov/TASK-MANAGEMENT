@@ -9,7 +9,8 @@ from django.contrib.auth.views import LoginView
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
-from django.http import Http404, HttpResponse
+from django.conf import settings
+from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.urls import reverse
@@ -18,12 +19,13 @@ from django.views.decorators.http import require_POST
 from django.utils.html import escape
 
 from . import pages, reports
-from .forms import (ActionForm, DepartmentForm, EmployeeEditForm, EmployeeForm, LoginForm,
-                    ParticipantForm, PartActionForm, TaskForm)
-from .models import DeadlineRequest, Department, Event, Task, TaskParticipant, User
-from .permissions import can_add_participants, can_delegate, can_manage
+from .forms import (ActionForm, AttachmentForm, ControllerForm, DepartmentForm, EmployeeEditForm,
+                    EmployeeForm, LoginForm, ParticipantForm, PartActionForm, TaskForm)
+from .models import DeadlineRequest, Department, Event, Task, TaskAttachment, TaskParticipant, User
+from .permissions import can_add_participants, can_attach, can_control, can_delegate, can_manage
+from .services import add_attachment as add_task_attachment
 from .services import add_participant as add_task_participant
-from .services import create_task, mark_seen, part_action, require, task_action
+from .services import create_task, mark_seen, part_action, remove_attachment, require, task_action
 
 
 class SignInView(LoginView):
@@ -145,10 +147,15 @@ def task_detail(request, pk):
     return render(request, template, {
         'page_title': 'Topshiriq tafsilotlari', 'subtitle': task.code, 'task': task,
         'can_manage': can_manage(request.user, task), 'can_delegate': can_delegate(request.user, task),
+        'can_control': can_control(request.user, task),
         'is_assignee': task.assignee_id == request.user.pk, 'ancestors': ancestor_rows,
-        'participants': task.participants.select_related('user'),
+        'participants': task.participants.filter(kind=TaskParticipant.Kind.EXECUTOR).select_related('user'),
+        'controllers': task.participants.filter(kind=TaskParticipant.Kind.CONTROLLER).select_related('user'),
         'participant_form': ParticipantForm(user=request.user, task=task) if can_add_participants(request.user, task) else None,
+        'controller_form': ControllerForm(user=request.user, task=task) if can_add_participants(request.user, task) else None,
         'can_add_participants': can_add_participants(request.user, task),
+        'attachments': task.attachments.select_related('uploaded_by'),
+        'attachment_form': AttachmentForm() if can_attach(request.user, task) else None,
         'children': tasks_for(request.user).filter(parent=task), 'events': task.events.select_related('actor'),
         'pending_request': task.deadline_requests.filter(state='pending').select_related('requester').first(),
     })
@@ -158,17 +165,61 @@ def task_detail(request, pk):
 @require_POST
 def add_participant(request, pk):
     task = get_object_or_404(tasks_for(request.user), pk=pk)
-    form = ParticipantForm(request.POST, user=request.user, task=task)
+    controller = request.POST.get('kind') == TaskParticipant.Kind.CONTROLLER
+    form = (ControllerForm if controller else ParticipantForm)(request.POST, user=request.user, task=task)
     if form.is_valid():
+        part = form.cleaned_data.get('note' if controller else 'part')
+        kind = TaskParticipant.Kind.CONTROLLER if controller else TaskParticipant.Kind.EXECUTOR
         try:
-            add_task_participant(request.user, task.pk, form.cleaned_data['person'].pk, form.cleaned_data['part'])
+            add_task_participant(request.user, task.pk, form.cleaned_data['person'].pk, part, kind)
         except ValidationError as error:
             messages.error(request, ' '.join(error.messages))
         else:
-            messages.success(request, 'Qo‘shimcha ijrochi qo‘shildi va unga xabar yuborildi.')
+            messages.success(request, 'Nazoratchi belgilandi va unga xabar yuborildi.' if controller
+                             else 'Qo‘shimcha ijrochi qo‘shildi va unga xabar yuborildi.')
     else:
         messages.error(request, 'Xodim va ijro qismini tekshiring.')
     return redirect('task_detail', pk=pk)
+
+
+@login_required
+@require_POST
+def add_attachment(request, pk):
+    get_object_or_404(tasks_for(request.user), pk=pk)
+    form = AttachmentForm(request.POST, request.FILES)
+    if form.is_valid():
+        try:
+            add_task_attachment(request.user, pk, form.cleaned_data['file'])
+        except ValidationError as error:
+            messages.error(request, ' '.join(error.messages))
+        else:
+            messages.success(request, 'Fayl biriktirildi.')
+    else:
+        messages.error(request, 'Faylni tanlang.')
+    return redirect('task_detail', pk=pk)
+
+
+@login_required
+@require_POST
+def delete_attachment(request, pk, attachment_id):
+    get_object_or_404(tasks_for(request.user), pk=pk)
+    try:
+        remove_attachment(request.user, attachment_id)
+    except TaskAttachment.DoesNotExist:
+        messages.error(request, 'Fayl topilmadi.')
+    else:
+        messages.success(request, 'Fayl o‘chirildi.')
+    return redirect('task_detail', pk=pk)
+
+
+@login_required
+def download_attachment(request, pk, attachment_id):
+    get_object_or_404(tasks_for(request.user), pk=pk)
+    attachment = get_object_or_404(TaskAttachment, pk=attachment_id, task_id=pk)
+    # S3/MinIO links are signed and short-lived; local files stream through Django.
+    if settings.S3_ENDPOINT_URL:
+        return redirect(attachment.file.url)
+    return FileResponse(attachment.file.open('rb'), as_attachment=True, filename=attachment.name)
 
 
 @login_required
@@ -200,7 +251,8 @@ def task_create(request):
     form = TaskForm(request.POST or None, user=request.user, parent=parent)
     if request.method == 'POST' and form.is_valid():
         try:
-            task = create_task(request.user, {k: form.cleaned_data[k] for k in ['title', 'description', 'assignee', 'due_at']}, parent)
+            task = create_task(request.user, {k: form.cleaned_data[k] for k in
+                ['title', 'description', 'assignee', 'due_at', 'letter_number', 'letter_date', 'letter_sender']}, parent)
         except ValidationError as error:
             form.add_error(None, error)
         else:
@@ -229,7 +281,7 @@ def perform_action(request, pk):
 
 @login_required
 def employees(request):
-    require(request.user.can_assign)
+    require(request.user.can_assign or request.user.can_oversee)
     week = request.GET.get('week', '')
     period = reports.parse_week(week)
     rows = reports.employee_stats(request.user, period)

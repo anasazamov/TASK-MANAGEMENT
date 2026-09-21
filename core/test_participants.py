@@ -20,6 +20,7 @@ class ParticipantTests(TestCase):
         cls.employee = User.objects.create_user('xodim', password='Testing-123!', full_name='Xalimov Farrux', department=dep)
         cls.helper = User.objects.create_user('yordamchi', password='Testing-123!', full_name='Kamolov Akmal', department=dep)
         cls.outsider = User.objects.create_user('ozga', password='Testing-123!', full_name='Maxfiy Xodim', department=other_dep)
+        cls.secretary = User.objects.create_user('kotiba', password='Testing-123!', full_name='Nodira Kotiba', role='secretary')
         cls.task = create_task(cls.head, dict(title='Loyiha pasporti', description='', assignee=cls.employee,
                                               due_at=timezone.now()+timedelta(days=5)))
 
@@ -110,6 +111,48 @@ class ParticipantTests(TestCase):
         self.client.force_login(self.outsider)
         self.assertEqual(self.client.post(f'/tasks/{self.task.pk}/participants/add/',
                                           {'person': self.helper.pk, 'part': 'Ish'}).status_code, 404)
+
+    def controller(self, user=None, person=None, note='Muddatni kuzatish'):
+        return add_participant(user or self.head, self.task.pk, (person or self.secretary).pk,
+                               note, TaskParticipant.Kind.CONTROLLER)
+
+    def test_controller_follows_execution_without_deciding_it(self):
+        secretary = self.secretary
+        watcher = self.controller(person=secretary)
+        self.assertEqual(watcher.kind, 'controller')
+        self.assertIn(self.task, Task.objects.visible_to(secretary))
+        self.assertTrue(Notification.objects.filter(user=secretary, title__contains='nazoratchi').exists())
+        task_action(secretary, self.task.pk, 'comment', 'Muddat yaqin')
+        task_action(secretary, self.task.pk, 'request_report', '')
+        self.assertIsNotNone(Task.objects.get(pk=self.task.pk).report_requested_at)
+        for action in ['accept', 'set_deadline', 'submit']:
+            with self.subTest(action=action), self.assertRaises(PermissionDenied):
+                task_action(secretary, self.task.pk, action, 'matn')
+        with self.assertRaises(ValidationError):
+            part_action(secretary, watcher.pk, 'submit_part', 'Men ijrochi emasman')
+
+    def test_controller_does_not_block_or_replace_execution(self):
+        self.controller()
+        task_action(self.employee, self.task.pk, 'submit', 'Bajarildi')
+        self.assertEqual(Task.objects.get(pk=self.task.pk).status, 'submitted')
+        self.client.force_login(self.head)
+        page = self.client.get(self.task.get_absolute_url())
+        self.assertContains(page, 'Nazoratchi belgilash')
+        self.assertContains(page, self.secretary.full_name)
+        self.client.force_login(self.secretary)
+        self.assertContains(self.client.get(self.task.get_absolute_url()), 'Haftalik hisobot so‘rash')
+
+    def test_controller_scope_and_removal_are_checked(self):
+        with self.assertRaises(ValidationError):
+            self.controller(person=self.employee)  # Already the assignee.
+        with self.assertRaises(PermissionDenied):
+            self.controller(user=self.helper)
+        watcher = self.controller()
+        with self.assertRaises(ValidationError):
+            self.controller()
+        self.client.force_login(self.head)
+        self.client.post(f'/tasks/{self.task.pk}/participants/{watcher.pk}/', {'action': 'remove'})
+        self.assertFalse(TaskParticipant.objects.exists())
 
     def test_agent_reads_participants_from_the_task(self):
         from . import agent_replies, agent_tools

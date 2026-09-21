@@ -12,3 +12,4 @@ sherpa-onnx==1.13.8
 numpy>=2.5,<3
 cryptography>=50,<51
 openpyxl>=3.1,<4
+django-storages[s3]>=1.14,<2

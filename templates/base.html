@@ -4,6 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ page_title|default:'Topshiriq nazorati' }} · Samarkand Invest</title>
   <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+  <script src="{% static 'js/compat.js' %}"></script>
   <script src="{% static 'js/theme.js' %}"></script>
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
   {% if user.is_authenticated %}<link rel="stylesheet" href="{% static 'css/agent.css' %}"><script src="{% static 'js/voice-vad.js' %}" defer></script><script src="{% static 'js/voice-noise-filter.js' %}" defer></script><script src="{% static 'js/voice-realtime.js' %}" defer></script><script src="{% static 'js/agent.js' %}" defer></script>{% endif %}

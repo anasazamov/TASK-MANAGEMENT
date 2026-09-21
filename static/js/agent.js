@@ -328,6 +328,9 @@
   async function toggleLive() {
     if (live?.active) { stopLive(); return; }
     if (busy || permission || recording) return;
+    if (window.isSecureContext === false) {
+      show(`Sayt himoyasiz ${location.protocol}//${location.host} orqali ochilgan, brauzer mikrofonni bermaydi. Serverni --https bilan ishga tushirib, https://${location.hostname} manzilini oching.`, true); return;
+    }
     if (!window.AudioContext || !window.AudioWorkletNode || !window.Worker || !window.VoiceNoiseFilter || !navigator.mediaDevices?.getUserMedia) {
       show('Brauzer jonli mikrofonni qo‘llamaydi. HTTPS yoki localhost orqali zamonaviy brauzerda oching.', true); return;
     }

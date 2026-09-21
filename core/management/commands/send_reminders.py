@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
-from core import push
+from core import deliveries, push
 from core.models import Event, Notification, Task
 
 
@@ -31,7 +31,7 @@ class Command(BaseCommand):
                     delivered += int(created)
                     created_any |= created
                     if created:
-                        push.send(notification)
+                        deliveries.announce(notification)
                 if created_any:
                     Event.objects.create(task=task, kind=Event.Kind.ALERT, body=f'{title}. {task.deadline_text}.')
         dropped = push.prune()

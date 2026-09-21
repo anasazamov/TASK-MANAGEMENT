@@ -2,7 +2,9 @@ from datetime import timedelta
 from urllib.parse import urlencode
 
 from django.contrib import messages
-from django.contrib.auth import update_session_auth_hash
+from django.contrib.auth import login, update_session_auth_hash
+from django.utils.crypto import constant_time_compare
+from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import PasswordChangeForm, SetPasswordForm
 from django.contrib.auth.views import LoginView
@@ -22,7 +24,7 @@ from django.views.decorators.http import require_POST
 
 from django.utils.html import escape
 
-from . import pages, reports
+from . import pages, reports, telegram
 from .forms import (ActionForm, AttachmentForm, ControllerForm, DepartmentForm, EmployeeEditForm,
                     EmployeeForm, LoginForm, ParticipantForm, PartActionForm, TaskForm)
 from .models import (DeadlineRequest, Department, Event, PushSubscription, Task, TaskAttachment,
@@ -305,6 +307,42 @@ def employees(request):
         return response
     return render(request, 'core/employees.html', {'page_title': 'Xodimlar', 'subtitle': 'Topshiriq yuklamasi va muddat holati',
         'rows': rows, 'week': week if period else '', 'default_week': reports.current_week(), 'period_label': reports.period_label(period)})
+
+
+@csrf_exempt
+@require_POST
+def telegram_webhook(request, secret):
+    # The secret path is the only proof this update came from Telegram.
+    if not settings.TELEGRAM_WEBHOOK_SECRET or not constant_time_compare(secret, settings.TELEGRAM_WEBHOOK_SECRET):
+        raise Http404
+    try:
+        update = json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({'ok': True})
+    if isinstance(update, dict):
+        telegram.handle(update)
+    return JsonResponse({'ok': True})
+
+
+@csrf_exempt
+@require_POST
+@never_cache
+def telegram_login(request):
+    """Sign in from the Mini App: Telegram signs who is asking, we map it to an account."""
+    try:
+        init_data = json.loads(request.body or '{}').get('init_data')
+    except ValueError:
+        init_data = None
+    person = telegram.verify(init_data)
+    if not person:
+        return JsonResponse({'error': 'invalid_init_data',
+                             'message': 'Telegram ma’lumoti tasdiqlanmadi. Ilovani Telegram orqali oching.'}, status=403)
+    user = telegram.account(person['id'])
+    if not user:
+        return JsonResponse({'error': 'not_linked', 'bot': settings.TELEGRAM_BOT_USERNAME,
+                             'message': 'Telegram hisobingiz bog‘lanmagan. Botga /start yuborib, telefon raqamingizni ulashing.'}, status=403)
+    login(request, user)
+    return JsonResponse({'status': 'signed_in', 'name': user.full_name})
 
 
 @never_cache

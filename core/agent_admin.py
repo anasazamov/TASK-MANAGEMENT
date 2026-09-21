@@ -81,6 +81,7 @@ def apply(user, name, args):
             before = f'{item.full_name}; {item.job_title}; {item.department}; {item.get_role_display()}; faol={item.is_active}'
             data = {key: getattr(args,key) if getattr(args,key) is not None else getattr(item,key)
                     for key in ['full_name','job_title','role']}
+            data['phone'] = item.phone
             data['department'] = args.department_id if args.department_id is not None else item.department_id
             item = validate(EmployeeEditForm(data,instance=item)).save()
         else:

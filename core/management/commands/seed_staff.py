@@ -27,36 +27,37 @@ INSON = 'Inson resurslarini rivojlantirish xizmati'
 DEVONXONA = 'Devonxona'
 TURIZM = 'Turizm va xizmat ko‘rsatishni rivojlantirish bo‘yicha loyiha ofisi'
 
-# username, F.I.Sh., department, role, lavozim
+# username, F.I.Sh., department, role, lavozim, telefon
 ROSTER = [
-    ('abilov', 'Abilov Feruz Ne’matullayevich', None, 'chair', 'Boshqaruv raisi'),
+    ('abilov', 'Abilov Feruz Ne’matullayevich', None, 'chair', 'Boshqaruv raisi', ''),
     ('musinov', 'Musinov Dilshod Sultonovich', RAHBARIYAT, 'head',
-     'Iqtisodiyot, moliya va strategik rivojlantirish masalalari bo‘yicha Boshqaruv raisining birinchi o‘rinbosari'),
+     'Iqtisodiyot, moliya va strategik rivojlantirish masalalari bo‘yicha Boshqaruv raisining birinchi o‘rinbosari',
+     '998901000009'),
     ('xaitov', 'Xaitov Orif Boliqulovich', RAHBARIYAT, 'employee',
-     'Boshqaruv raisining Loyiha boshqaruvi bo‘yicha o‘rinbosari v.b.'),
-    ('raximov', 'Raximov Zafar Ismatovich', ADMINISTRATSIYA, 'head', 'Boshqaruv administratsiyasi rahbari'),
-    ('ergashev', 'Ergashev Jahongir Yusufxonovich', ADMINISTRATSIYA, 'employee', 'Boshqaruv administratsiyasi bosh mutaxassisi'),
-    ('usmonov', 'Usmonov Umar Nizomiddinovich', BUXGALTERIYA, 'head', 'Bo‘lim boshlig‘i — Bosh hisobchi'),
-    ('abdullayev', 'Abdullayev Shahzodxon Zafar o‘g‘li', BUXGALTERIYA, 'employee', 'Bosh hisobchi o‘rinbosari'),
-    ('yarmatov', 'Yarmatov Ne’matjon Ixalovich', MOLIYA, 'head', 'Bo‘lim bosh mutaxassisi'),
-    ('tuyliyev', 'Tuyliyev Asliddin Keldiyor o‘g‘li', QURILISH, 'head', 'Loyiha ofisi rahbari v.v.b.'),
-    ('xalimov', 'Xalimov Farrux Zafarzoda', QURILISH, 'employee', 'Loyiha ofisi bosh mutaxassisi'),
-    ('luqmonov', 'Luqmonov Hamidulla Ikromovich', QURILISH, 'employee', 'Loyiha ofisi yetakchi mutaxassisi'),
-    ('istamov', 'Istamov Firdavs Yunusovich', KOMMUNIKATSIYA, 'head', 'Loyiha ofisi rahbari'),
-    ('shonazarov', 'Shonazarov Shodiyor Shonazar o‘g‘li', KOMMUNIKATSIYA, 'employee', 'Loyiha ofisi bosh mutaxassisi'),
-    ('marupov', 'Marupov Doniyor Xasanjonovich', KOMMUNIKATSIYA, 'employee', 'Loyiha ofisi yetakchi mutaxassisi'),
-    ('xoshimov', 'Xoshimov Nurmuhammad Amin o‘g‘li', INVESTOR, 'head', 'Bo‘lim bosh mutaxassisi'),
-    ('jorayev', 'Jo‘rayev Bahodir Nishonovich', INVESTOR, 'employee', 'Bo‘lim yetakchi mutaxassisi'),
-    ('kamolov', 'Kamolov Akmal Abdumalikovich', METODOLOGIYA, 'head', 'Bo‘lim bosh mutaxassisi'),
-    ('quvandikov', 'Quvandikov Muxtor Narzullayevich', AKTIVLAR, 'head', 'Bo‘lim boshlig‘i'),
-    ('ahmedov', 'Ahmedov Ilyos Izzatullo o‘g‘li', AKTIVLAR, 'employee', 'Bo‘lim bosh mutaxassisi'),
-    ('xudayarov', 'Xudayarov Sherzod Erkinovich', RAQAMLASHTIRISH, 'head', 'Bo‘lim boshlig‘i'),
-    ('azamov', 'A’zamov Anas Asliddin o‘g‘li', RAQAMLASHTIRISH, 'employee', 'Bo‘lim bosh mutaxassisi'),
-    ('bayzakov', 'Bayzakov Dilshod Ilhomovich', YURIDIK, 'head', 'Yuridik bo‘lim boshlig‘i'),
-    ('xolmuradov', 'Xolmuradov Zafar Ilhomovich', INSON, 'head', 'Xizmat rahbari'),
-    ('isomiddinov', 'Isomiddinov Izzatullo Muxtor o‘g‘li', DEVONXONA, 'office', 'Devonxona mudiri'),
-    ('tosheva', 'Tosheva Nargiza Farmonovna', DEVONXONA, 'secretary', 'Kotib referent'),
-    ('oblonov', 'Oblonov Shahzod Sirojiddin o‘g‘li', TURIZM, 'head', 'Loyiha ofisi yetakchi mutaxassisi'),
+     'Boshqaruv raisining Loyiha boshqaruvi bo‘yicha o‘rinbosari v.b.', '998933570504'),
+    ('raximov', 'Raximov Zafar Ismatovich', ADMINISTRATSIYA, 'head', 'Boshqaruv administratsiyasi rahbari', '998975790007'),
+    ('ergashev', 'Ergashev Jahongir Yusufxonovich', ADMINISTRATSIYA, 'employee', 'Boshqaruv administratsiyasi bosh mutaxassisi', '998991460123'),
+    ('usmonov', 'Usmonov Umar Nizomiddinovich', BUXGALTERIYA, 'head', 'Bo‘lim boshlig‘i — Bosh hisobchi', '998990823921'),
+    ('abdullayev', 'Abdullayev Shahzodxon Zafar o‘g‘li', BUXGALTERIYA, 'employee', 'Bosh hisobchi o‘rinbosari', '998916285145'),
+    ('yarmatov', 'Yarmatov Ne’matjon Ixalovich', MOLIYA, 'head', 'Bo‘lim bosh mutaxassisi', '998933518881'),
+    ('tuyliyev', 'Tuyliyev Asliddin Keldiyor o‘g‘li', QURILISH, 'head', 'Loyiha ofisi rahbari v.v.b.', '998915471202'),
+    ('xalimov', 'Xalimov Farrux Zafarzoda', QURILISH, 'employee', 'Loyiha ofisi bosh mutaxassisi', '998979245250'),
+    ('luqmonov', 'Luqmonov Hamidulla Ikromovich', QURILISH, 'employee', 'Loyiha ofisi yetakchi mutaxassisi', '998935321705'),
+    ('istamov', 'Istamov Firdavs Yunusovich', KOMMUNIKATSIYA, 'head', 'Loyiha ofisi rahbari', '998981000417'),
+    ('shonazarov', 'Shonazarov Shodiyor Shonazar o‘g‘li', KOMMUNIKATSIYA, 'employee', 'Loyiha ofisi bosh mutaxassisi', '998985607273'),
+    ('marupov', 'Marupov Doniyor Xasanjonovich', KOMMUNIKATSIYA, 'employee', 'Loyiha ofisi yetakchi mutaxassisi', '998952494424'),
+    ('xoshimov', 'Xoshimov Nurmuhammad Amin o‘g‘li', INVESTOR, 'head', 'Bo‘lim bosh mutaxassisi', '998902514872'),
+    ('jorayev', 'Jo‘rayev Bahodir Nishonovich', INVESTOR, 'employee', 'Bo‘lim yetakchi mutaxassisi', '998902715020'),
+    ('kamolov', 'Kamolov Akmal Abdumalikovich', METODOLOGIYA, 'head', 'Bo‘lim bosh mutaxassisi', '998932244795'),
+    ('quvandikov', 'Quvandikov Muxtor Narzullayevich', AKTIVLAR, 'head', 'Bo‘lim boshlig‘i', '998937270201'),
+    ('ahmedov', 'Ahmedov Ilyos Izzatullo o‘g‘li', AKTIVLAR, 'employee', 'Bo‘lim bosh mutaxassisi', '998933018138'),
+    ('xudayarov', 'Xudayarov Sherzod Erkinovich', RAQAMLASHTIRISH, 'head', 'Bo‘lim boshlig‘i', '998974086161'),
+    ('azamov', 'A’zamov Anas Asliddin o‘g‘li', RAQAMLASHTIRISH, 'employee', 'Bo‘lim bosh mutaxassisi', '998990751735'),
+    ('bayzakov', 'Bayzakov Dilshod Ilhomovich', YURIDIK, 'head', 'Yuridik bo‘lim boshlig‘i', '998937224444'),
+    ('xolmuradov', 'Xolmuradov Zafar Ilhomovich', INSON, 'head', 'Xizmat rahbari', '998906568672'),
+    ('isomiddinov', 'Isomiddinov Izzatullo Muxtor o‘g‘li', DEVONXONA, 'office', 'Devonxona mudiri', '998995990136'),
+    ('tosheva', 'Tosheva Nargiza Farmonovna', DEVONXONA, 'secretary', 'Kotib referent', '998940235777'),
+    ('oblonov', 'Oblonov Shahzod Sirojiddin o‘g‘li', TURIZM, 'head', 'Loyiha ofisi yetakchi mutaxassisi', '998906565888'),
 ]
 
 
@@ -84,7 +85,7 @@ class Command(BaseCommand):
                     'DIQQAT: bu parol oson topiladi va barcha hisoblar uchun bir xil bo‘ladi. '
                     'Xodimlar tizimga kirgach, uni albatta almashtirsin.'))
         created, skipped = [], []
-        for username, full_name, department_name, role, job_title in ROSTER:
+        for username, full_name, department_name, role, job_title, phone in ROSTER:
             if User.objects.filter(username=username).exists():
                 skipped.append(username)
                 continue
@@ -92,7 +93,7 @@ class Command(BaseCommand):
             if department_name:
                 department, _ = Department.objects.get_or_create(name=department_name)
             user = User(username=username, full_name=full_name, role=role,
-                        job_title=job_title, department=department)
+                        job_title=job_title, department=department, phone=phone)
             if password:
                 user.set_password(password)
             else:

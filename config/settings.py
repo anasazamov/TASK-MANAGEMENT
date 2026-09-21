@@ -93,6 +93,17 @@ if S3_ENDPOINT_URL:
         'default_acl': None,
         'signature_version': 's3v4',
     }}
+# Telegram Mini App and bot. The token authenticates the bot and signs Mini App data.
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '').strip()
+TELEGRAM_BOT_USERNAME = os.getenv('TELEGRAM_BOT_USERNAME', '').strip().lstrip('@')
+TELEGRAM_WEBHOOK_SECRET = os.getenv('TELEGRAM_WEBHOOK_SECRET', '').strip()
+TELEGRAM_APP_URL = os.getenv('TELEGRAM_APP_URL', '').strip().rstrip('/')
+if os.getenv('TELEGRAM_EMBED', '0') == '1':
+    # Telegram Web runs the Mini App in an iframe, a third-party context: the
+    # session cookie only travels there as SameSite=None, which needs HTTPS.
+    SESSION_COOKIE_SAMESITE = CSRF_COOKIE_SAMESITE = 'None'
+    SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE = True
+
 # Browser push notifications. Generate the pair with: manage.py push_keys
 VAPID_PUBLIC_KEY = os.getenv('VAPID_PUBLIC_KEY', '').strip()
 VAPID_PRIVATE_KEY = os.getenv('VAPID_PRIVATE_KEY', '').strip()

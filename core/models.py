@@ -31,6 +31,9 @@ class User(AbstractUser):
 
     full_name = models.CharField('F.I.Sh.', max_length=180)
     job_title = models.CharField('Lavozimi', max_length=180, blank=True)
+    phone = models.CharField('Telefon', max_length=20, blank=True,
+                             help_text='Telegram orqali kirish uchun: 998901234567')
+    telegram_id = models.BigIntegerField('Telegram ID', null=True, blank=True, unique=True, editable=False)
     role = models.CharField('Rol', max_length=12, choices=Role.choices, default=Role.EMPLOYEE)
     department = models.ForeignKey(Department, null=True, blank=True, on_delete=models.PROTECT, related_name='employees')
 

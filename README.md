@@ -154,6 +154,25 @@ Nutq filtri: [Silero VAD](https://github.com/snakers4/silero-vad), [ONNX Runtime
 .\.venv\Scripts\python.exe manage.py send_reminders
 ```
 
+## Telegram Mini App
+
+Tizimni Telegram ichida ochish va bot orqali xabar olish mumkin. Xodim botga o‘z telefon raqamini yuboradi, raqam xodimlar ro‘yxatidagi raqam bilan solishtiriladi va hisoblar bog‘lanadi — parol kiritish shart emas. Brauzerdan login/parol bilan kirish avvalgidek ishlaydi.
+
+1. [@BotFather](https://t.me/BotFather)da bot yarating, tokenni oling.
+2. `.env` ga yozing: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, uzun tasodifiy `TELEGRAM_WEBHOOK_SECRET` va tashqi manzil `TELEGRAM_APP_URL=https://domen`.
+3. Xodimlar telefon raqamlari to‘ldirilgan bo‘lsin (Struktura → xodimni tahrirlash; `seed_staff` ularni ro‘yxat bilan birga yozadi).
+4. Botni shu serverga ulang:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py telegram_setup
+```
+
+Buyruq webhookni, Telegramdagi «Topshiriqlar» menyu tugmasini va `/start` buyrug‘ini sozlaydi. Telegram **faqat haqiqiy https manzil** bilan ishlaydi; o‘z-o‘zidan imzolangan sertifikat qabul qilinmaydi. Telegram Web (brauzerdagi versiya) ilovani iframe ichida ochgani uchun `TELEGRAM_EMBED=1` kerak bo‘ladi — u sessiya cookie’sini `SameSite=None; Secure` qilib qo‘yadi.
+
+Xavfsizlik: Mini App ma’lumoti bot tokeni bilan imzolanadi va serverda tekshiriladi; imzo mos kelmasa yoki 24 soatdan eski bo‘lsa, kirish rad etiladi. Faqat foydalanuvchining **o‘z** kontakti qabul qilinadi, boshqaning raqami yuborilsa bog‘lanmaydi. Ro‘yxatda yo‘q raqam hech qachon hisob ochmaydi.
+
+Bot xabarlari: yangi topshiriq, muddat eslatmalari va boshqa xabarnomalar botga ham yuboriladi — xabarda sarlavha, topshiriq kodi va nomi hamda «Ochish» tugmasi bo‘ladi.
+
 **Brauzer bildirishnomalari (Web Push).** Xodim «Xabarnomalar» sahifasida «Bildirishnomani yoqish»ni bossa, yangi topshiriq, muddat va boshqa xabarlar sayt yopiq bo‘lganda ham brauzerga keladi (brauzer ishlab turishi kerak). Kalitlarni bir marta yarating va `.env` ga qo‘ying:
 
 ```powershell

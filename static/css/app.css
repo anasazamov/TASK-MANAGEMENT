@@ -21,3 +21,11 @@
 .sidebar{overflow:hidden}.sidebar nav{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:4px}.sidebar-bottom{flex:0 0 auto;padding-top:16px}
 @media(max-height:780px){.sidebar{padding-top:18px}.brand-caption{display:none}.user-card{padding-top:12px}.nav-caption{margin-top:10px}}
 .push-card{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px;margin-bottom:16px;flex-wrap:wrap}.push-card .help-text{margin-top:4px;max-width:60ch}
+/* Telegram Mini App: a narrow window inside another app, with its own chrome. */
+[data-telegram=true] .push-card,[data-telegram=true] .theme-toggle,[data-telegram=true] .page-footer,[data-telegram=true] .workspace-note{display:none}
+[data-telegram=true] .topbar{height:auto;padding:12px 16px;gap:10px}
+[data-telegram=true] .main-content{padding:16px 16px 0;min-height:auto}
+[data-telegram=true] main.main-content{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+[data-telegram=true] .agent-launch{bottom:calc(16px + env(safe-area-inset-bottom,0px));right:16px;padding:10px 14px;font-size:11px}
+[data-telegram=true] .agent-launch span{display:none}
+[data-telegram=true] body{overscroll-behavior-y:contain}

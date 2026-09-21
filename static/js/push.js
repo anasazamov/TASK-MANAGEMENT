@@ -98,7 +98,9 @@
     // Ask once per browser after signing in. Chrome blocks a site whose prompt is
     // ignored repeatedly, so a dismissed prompt is never raised again by itself:
     // the notifications page keeps the button.
-    if (subscription || asked() || Notification.permission !== 'default') return;
+    // Inside Telegram the bot already delivers the same notifications.
+    const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
+    if (subscription || asked() || inTelegram || Notification.permission !== 'default') return;
     remember();
     try { render(await enable()); } catch (_) { render(null); }
   })();

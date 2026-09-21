@@ -3,14 +3,27 @@
   'use strict';
   const app = window.Telegram?.WebApp;
   if (!app?.initData) return;
-  document.documentElement.dataset.telegram = 'true';
+  const root = document.documentElement;
+  root.dataset.telegram = 'true';
   app.ready();
   app.expand();
   try { app.setHeaderColor('secondary_bg_color'); } catch (_) {}
 
+  // Follow the theme of the client the app is embedded in, not the saved website one.
+  const applyTheme = () => { root.dataset.theme = app.colorScheme === 'light' ? 'light' : 'dark'; };
+  applyTheme();
+  app.onEvent?.('themeChanged', applyTheme);
+
+  // Telegram draws the back button; the site's own pages stay uncluttered.
+  const back = app.BackButton;
+  if (back) {
+    const home = new URL(document.getElementById('telegram-config')?.dataset.homeUrl || '/', location.origin);
+    if (location.pathname === home.pathname && !location.search) back.hide();
+    else { back.show(); back.onClick(() => history.length > 1 ? history.back() : location.assign(home.pathname)); }
+  }
+
   const config = document.getElementById('telegram-config');
-  if (!config) return;
-  if (config.dataset.authenticated === 'true') return;
+  if (!config || config.dataset.authenticated === 'true') return;
 
   async function signIn() {
     const response = await fetch(config.dataset.loginUrl, {method: 'POST', credentials: 'same-origin',

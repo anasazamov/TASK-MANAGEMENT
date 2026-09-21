@@ -13,14 +13,14 @@ from django.test import Client, TestCase, override_settings
 from django.utils import timezone
 from openai import OpenAI
 
-from . import voice, voicelab
+from . import muxlisa, voice
 from .speech_text import spoken_text
 from .models import Department, Task, User
 
 HTTPClient = httpx.Client
 
 
-@override_settings(OPENAI_API_KEY='test-openai-key', VOICELAB_API_KEY='test-voicelab-key', VOICELAB_VOICE_ID='',
+@override_settings(OPENAI_API_KEY='test-openai-key', MUXLISA_API_KEY='test-muxlisa-key', MUXLISA_SPEAKER=0,
                    PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'],
                    STORAGES={'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
                              'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'}})
@@ -45,14 +45,14 @@ class VoiceTests(TestCase):
     def audio(self, name='command.webm'):
         return SimpleUploadedFile(name, b'test-audio', content_type='audio/webm')
 
-    def audio_post(self, request_id=None):
-        return self.client.post('/voice/transcribe/', {'audio': self.audio(), 'request_id': request_id or str(uuid.uuid4())})
+    def audio_post(self):
+        return self.client.post('/voice/transcribe/', {'audio': self.audio()})
 
     def transport(self, handler):
         def dispatch(request):
             self.requests.append(request)
             return handler(request)
-        return patch('core.voicelab.httpx.Client', side_effect=lambda **kwargs: HTTPClient(transport=httpx.MockTransport(dispatch), **kwargs))
+        return patch('core.muxlisa.httpx.Client', side_effect=lambda **kwargs: HTTPClient(transport=httpx.MockTransport(dispatch), **kwargs))
 
     def result(self, **updates):
         data = dict(title='Loyiha pasportlarini yangilash', description='', assignee_id=self.employee.pk,
@@ -79,12 +79,6 @@ class VoiceTests(TestCase):
         return data.getvalue()
 
     def tts_handler(self, request):
-        if request.url.path.endswith('/languages'):
-            return httpx.Response(200, json={'data': [{'code': 'uz'}]})
-        if request.url.path.endswith('/voices'):
-            return httpx.Response(200, json={'data': [
-                {'id': 'voice_private', 'language': 'uz', 'kind': 'custom'},
-                {'id': 'voice_uz', 'language': 'uz', 'kind': 'system'}]})
         return httpx.Response(200, content=self.wav(), headers={'Content-Type': 'audio/wav'})
 
     def reply_token(self, user=None, text='Maydonlarni tekshiring.'):
@@ -105,7 +99,7 @@ class VoiceTests(TestCase):
                 self.assertNotIn('reasoning', payload)
 
     def test_voice_endpoints_require_login_but_employees_can_use_speech(self):
-        paths = ['/voice/transcribe/', '/voice/draft/', '/voice/speak/', '/voice/transcription-status/']
+        paths = ['/voice/transcribe/', '/voice/draft/', '/voice/speak/']
         self.client.logout()
         self.assertEqual(self.client.get('/voice/status/').status_code, 401)
         for path in paths:
@@ -113,7 +107,7 @@ class VoiceTests(TestCase):
         self.client.force_login(self.employee)
         self.assertEqual(self.post('/voice/draft/', {}).status_code, 403)
         self.assertEqual(self.client.get('/voice/status/').status_code, 200)
-        with self.transport(lambda r: httpx.Response(200, json={'transcript': 'Topshiriqlarni och'})):
+        with self.transport(lambda r: httpx.Response(200, json={'text': 'Topshiriqlarni och'})):
             self.assertEqual(self.audio_post().status_code, 200)
         with self.transport(self.tts_handler):
             self.assertEqual(self.post('/voice/speak/', {'reply_token': self.reply_token(self.employee)}).status_code, 200)
@@ -121,71 +115,56 @@ class VoiceTests(TestCase):
     def test_voice_post_endpoints_enforce_csrf_and_http_method(self):
         client = Client(enforce_csrf_checks=True)
         client.force_login(self.head)
-        for path in ['/voice/transcribe/', '/voice/draft/', '/voice/speak/', '/voice/transcription-status/']:
+        for path in ['/voice/transcribe/', '/voice/draft/', '/voice/speak/']:
             self.assertEqual(client.post(path).status_code, 403)
             self.assertEqual(client.get(path).status_code, 405)
 
-    @override_settings(VOICELAB_API_KEY='')
+    @override_settings(MUXLISA_API_KEY='')
     def test_configuration_is_independent_and_never_exposes_credentials(self):
         response = self.client.get('/voice/status/')
         self.assertEqual(response.json(), {'configured': False, 'stt': False, 'llm': True, 'tts': False,
-                                         'max_audio_bytes': 10485760, 'max_seconds': 29})
+                                         'max_audio_bytes': 5242880, 'max_seconds': 29})
         self.assertNotContains(response, 'test-openai-key')
         self.assertIn('no-store', response.headers['Cache-Control'])
 
-    def test_stt_uses_voicelab_uzbek_and_reuses_idempotency_key(self):
-        request_id = str(uuid.uuid4())
-        with self.transport(lambda r: httpx.Response(200, json={'transcript': 'Xalimovga ertagacha pasportlarni yangilash'})):
-            self.assertEqual(self.audio_post(request_id).json()['status'], 'completed')
-            self.assertEqual(self.audio_post(request_id).status_code, 200)
-        first, second = self.requests
-        self.assertEqual(str(first.url), 'https://api.voicelab.uz/v1/stt')
-        self.assertEqual(first.headers['Authorization'], 'Bearer test-voicelab-key')
-        self.assertEqual(first.headers['Idempotency-Key'], second.headers['Idempotency-Key'])
-        uuid.UUID(first.headers['Idempotency-Key'])
-        self.assertIn(b'name="language"\r\n\r\nuz', first.content)
-        self.assertIn(b'name="audio"', first.content)
-        self.assertNotIn(b'Xalimov', first.content)  # No employee directory goes to STT.
+    def test_stt_posts_audio_to_muxlisa_with_the_api_key_header(self):
+        with self.transport(lambda r: httpx.Response(200, json={'text': 'Xalimovga ertagacha pasportlarni yangilash'})):
+            self.assertEqual(self.audio_post().json()['status'], 'completed')
+        request = self.requests[0]
+        self.assertEqual(str(request.url), 'https://service.muxlisa.uz/api/v2/stt')
+        self.assertEqual(request.headers['x-api-key'], 'test-muxlisa-key')
+        self.assertIn(b'name="audio"', request.content)
+        self.assertNotIn(b'Xalimov', request.content)  # No employee directory goes to STT.
 
-    def test_invalid_audio_and_request_id_are_rejected_before_provider(self):
-        with patch('core.voicelab.request') as provider:
-            self.assertEqual(self.audio_post('bad').status_code, 400)
-            response = self.client.post('/voice/transcribe/', {'audio': self.audio('file.exe'), 'request_id': str(uuid.uuid4())})
-            self.assertEqual(response.status_code, 400)
+    def test_unsupported_audio_is_rejected_before_provider(self):
+        with patch('core.muxlisa.request') as provider:
+            self.assertEqual(self.client.post('/voice/transcribe/', {'audio': self.audio('file.exe')}).status_code, 400)
             provider.assert_not_called()
 
     @override_settings(VOICE_MAX_AUDIO_BYTES=5)
     def test_large_audio_is_rejected(self):
-        with patch('core.voicelab.request') as provider:
+        with patch('core.muxlisa.request') as provider:
             self.assertEqual(self.audio_post().status_code, 413)
             provider.assert_not_called()
 
-    @override_settings(VOICELAB_API_KEY='')
+    @override_settings(MUXLISA_API_KEY='')
     def test_missing_stt_key_returns_actionable_error(self):
-        self.assertEqual(self.audio_post().json()['error'], 'voicelab_not_configured')
+        self.assertEqual(self.audio_post().json()['error'], 'muxlisa_not_configured')
 
     def test_provider_errors_do_not_leak_private_response_content(self):
-        with self.transport(lambda r: httpx.Response(401, json={'message': 'secret-key-in-error', 'error': {'code': 'invalid_api_key'}})):
+        with self.transport(lambda r: httpx.Response(401, json={'detail': 'secret-key-in-error'})):
             response = self.audio_post()
         self.assertEqual(response.status_code, 502)
         self.assertNotIn('secret-key-in-error', response.content.decode())
 
-    def test_queued_audio_poll_is_bound_to_user_and_handles_completion(self):
-        with self.transport(lambda r: httpx.Response(202, json={'id': 'stt_job', 'status': 'queued'})):
-            result = self.audio_post()
-        self.assertEqual(result.status_code, 202)
-        ticket = result.json()['ticket']
-        self.client.force_login(self.chair)
-        with patch('core.voicelab.transcription_status') as provider:
-            self.assertEqual(self.post('/voice/transcription-status/', {'ticket': ticket}).status_code, 403)
-            provider.assert_not_called()
-        self.client.force_login(self.head)
-        with self.transport(lambda r: httpx.Response(200, json={'status': 'completed', 'transcript': 'Tayyor matn'})):
-            self.assertEqual(self.post('/voice/transcription-status/', {'ticket': ticket}).json()['transcript'], 'Tayyor matn')
-        self.assertEqual(self.requests[-1].url.path, '/v1/stt/transcriptions/stt_job')
+    def test_provider_statuses_map_to_user_errors(self):
+        for status, code in [(400, 'muxlisa_invalid_audio'), (402, 'muxlisa_insufficient_credits'),
+                             (429, 'muxlisa_rate_limit'), (500, 'muxlisa_unavailable')]:
+            with self.subTest(status=status), self.transport(lambda r, status=status: httpx.Response(status, json={'detail': 'x'})):
+                self.assertEqual(self.audio_post().json()['error'], code)
 
     def test_silence_and_malformed_transcripts_fail(self):
-        for body in [{'transcript': ''}, {}, {'transcript': 123}]:
+        for body in [{'text': ''}, {}, {'text': 123}]:
             with self.transport(lambda r: httpx.Response(200, json=body)):
                 self.assertGreaterEqual(self.audio_post().status_code, 400)
 
@@ -205,7 +184,7 @@ class VoiceTests(TestCase):
         context = json.loads(payload['input'][1]['content'])
         self.assertEqual([p['id'] for p in context['allowed_assignees']], [self.employee.pk])
         self.assertNotIn('Boshqa Xodim', request.content.decode())
-        self.assertNotIn('test-voicelab-key', request.content.decode())
+        self.assertNotIn('test-muxlisa-key', request.content.decode())
 
     def test_agent_cannot_assign_outside_user_scope(self):
         with self.openai_transport(self.result(assignee_id=self.other.pk)):
@@ -244,28 +223,28 @@ class VoiceTests(TestCase):
 
     @override_settings(OPENAI_API_KEY='')
     def test_missing_llm_key_does_not_fall_back_to_other_provider(self):
-        with patch('core.voicelab.request') as provider:
+        with patch('core.muxlisa.request') as provider:
             response = self.post('/voice/draft/', {'command': 'Vazifa yarat'})
             self.assertEqual(response.status_code, 503)
             provider.assert_not_called()
 
-    def test_tts_uses_catalog_uzbek_voice_and_same_key_for_retry(self):
-        token = self.reply_token()
+    def test_tts_sends_the_configured_speaker_and_returns_wav(self):
         with self.transport(self.tts_handler):
-            for _ in range(2):
-                response = self.post('/voice/speak/', {'reply_token': token})
-                self.assertEqual(response.status_code, 200, response.content)
-                self.assertEqual(response['Content-Type'], 'audio/wav')
-                self.assertIn('no-store', response['Cache-Control'])
-        generations = [r for r in self.requests if r.url.path == '/v1/tts']
-        self.assertEqual(len(generations), 2)
-        self.assertEqual(generations[0].headers['Idempotency-Key'], generations[1].headers['Idempotency-Key'])
-        self.assertEqual(json.loads(generations[0].content), {'text': 'Maydonlarni tekshiring.', 'language': 'uz', 'voice_id': 'voice_uz', 'speed': 1})
-        self.assertEqual(len(self.requests), 4)  # Language/voice catalogs are cached.
+            response = self.post('/voice/speak/', {'reply_token': self.reply_token()})
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response['Content-Type'], 'audio/wav')
+        self.assertIn('no-store', response['Cache-Control'])
+        request = self.requests[0]
+        self.assertEqual(str(request.url), 'https://service.muxlisa.uz/api/v2/tts')
+        self.assertEqual(request.headers['x-api-key'], 'test-muxlisa-key')
+        self.assertEqual(json.loads(request.content), {'text': 'Maydonlarni tekshiring.', 'speaker': 0})
+        with override_settings(MUXLISA_SPEAKER=1), self.transport(self.tts_handler):
+            self.post('/voice/speak/', {'reply_token': self.reply_token()})
+        self.assertEqual(json.loads(self.requests[-1].content)['speaker'], 1)
 
     def test_tts_rejects_raw_text_forged_or_other_users_reply(self):
         for payload in [{'text': 'Arbitrary text'}, {'reply_token': 'forged'}, {'reply_token': self.reply_token(self.chair)}]:
-            with patch('core.voicelab.synthesize') as provider:
+            with patch('core.muxlisa.synthesize') as provider:
                 self.assertIn(self.post('/voice/speak/', payload).status_code, (400, 403))
                 provider.assert_not_called()
 
@@ -274,17 +253,15 @@ class VoiceTests(TestCase):
             token = self.reply_token()
         self.assertEqual(self.post('/voice/speak/', {'reply_token': token}).json()['error'], 'expired_ticket')
 
-    @override_settings(VOICELAB_VOICE_ID='voice_missing')
-    def test_invalid_voice_does_not_generate_speech(self):
-        with self.transport(self.tts_handler):
+    def test_non_wav_provider_reply_is_refused(self):
+        with self.transport(lambda r: httpx.Response(200, content=b'not-audio', headers={'Content-Type': 'application/json'})):
             response = self.post('/voice/speak/', {'reply_token': self.reply_token()})
-        self.assertEqual(response.status_code, 503)
-        self.assertFalse(any(r.url.path == '/v1/tts' for r in self.requests))
+        self.assertEqual(response.json()['error'], 'tts_response')
 
-    def test_utf8_speech_excerpt_obeys_provider_byte_limit(self):
-        for text in ['O‘zbekcha savol. ' * 200, '界' * 1000, 'x' * 1001]:
-            result = voicelab.speech_excerpt(text)
-            self.assertLessEqual(len(result.encode('utf-8')), 1000)
+    def test_speech_excerpt_obeys_provider_character_limit(self):
+        for text in ['O‘zbekcha savol. ' * 200, '界' * 1001, 'x' * 1001]:
+            result = muxlisa.speech_excerpt(text)
+            self.assertLessEqual(len(result), muxlisa.MAX_TTS_CHARACTERS)
             self.assertTrue(result.endswith('ekrandan o‘qing.'))
 
     def test_speech_copy_expands_task_codes_times_and_omits_markdown(self):
@@ -303,13 +280,11 @@ class VoiceTests(TestCase):
         self.assertEqual(spoken_text('31.02.2026; 2.5 ta; A-123; 123ABC; item.'),
             '31.02.2026; 2.5 ta; A-123; 123ABC; item.')
 
-    def test_failed_stt_job_reports_provider_overload_without_blame_or_details(self):
+    def test_provider_failures_never_repeat_provider_wording(self):
         with self.assertRaises(voice.VoiceError) as caught:
-            voicelab.transcription_result({'status': 'failed', 'error': {
-                'code': 'stt_overloaded', 'stage': 'scheduler', 'message': 'private-provider-data'}})
-        self.assertEqual(caught.exception.code, 'voicelab_overloaded')
-        self.assertEqual(caught.exception.status, 503)
-        self.assertIn('xizmati band', caught.exception.message)
+            muxlisa.check_response(httpx.Response(402, json={'detail': 'private-provider-data'}))
+        self.assertEqual(caught.exception.code, 'muxlisa_insufficient_credits')
+        self.assertEqual(caught.exception.status, 402)
         self.assertNotIn('private-provider-data', caught.exception.message)
 
     @override_settings(VOICE_REQUESTS_PER_MINUTE=1)
@@ -323,5 +298,5 @@ class VoiceTests(TestCase):
         response = self.client.get('/tasks/new/')
         for text in ['voice/speak/', 'voice/transcribe/', 'agent/message/', 'Javobni ovozda o‘qish']:
             self.assertContains(response, text)
-        for key in ['test-openai-key', 'test-voicelab-key']:
+        for key in ['test-openai-key', 'test-muxlisa-key']:
             self.assertNotContains(response, key)

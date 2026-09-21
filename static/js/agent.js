@@ -109,7 +109,7 @@
         config = results[0].value;
         $('[data-agent-connection]').textContent = config.llm && config.stt ? 'Tayyor · Ovozli suhbatga tayyor.' :
           !config.llm ? 'OpenAI kaliti hali sozlanmagan. Hozir aniq sahifa ochish buyruqlari ishlaydi; murakkab suhbat uchun OpenAI kerak.' :
-            'Matnli agent tayyor. Ovoz uchun VoiceLab sozlanishi kerak.';
+            'Matnli agent tayyor. Ovoz uchun Muxlisa AI sozlanishi kerak.';
       } else { $('[data-agent-connection]').textContent = results[0].reason.message; }
       if (results[1].status !== 'fulfilled') throw results[1].reason;
       const data = results[1].value;
@@ -158,8 +158,6 @@
         await liveSpeech.play(panel.dataset.streamUrl, token, csrf, () => {
           $('[data-live-label]').textContent = 'Agent gapiryapti · gapirsangiz to‘xtaydi';
           show('Agentni tinglang yoki gapirib javobni to‘xtating.');
-        }, message => {
-          if (epoch === turnEpoch && live?.active) { $('[data-live-label]').textContent = message; show(message); }
         });
         if (epoch === turnEpoch && live?.active) { show('Tinglayapman. Keyingi gapingizni ayting.'); $('[data-live-label]').textContent = 'Tinglayapman'; }
       } catch (error) { if (epoch === turnEpoch && live?.active) show(error.name === 'AbortError' ? 'Ovozli javob to‘xtadi. Gapirishingiz mumkin.' : error.message, true); }
@@ -255,33 +253,23 @@
     if (result && !navigating && auto.checked && epoch === turnEpoch) speak(replyToken);
     flushLive();
   }
-  async function transcribe(blob, name, requestId = crypto.randomUUID(), ticket = null) {
+  async function transcribe(blob, name) {
     busy = true; controls(); stopSpeech(); show('Ovoz matnga aylantirilmoqda…');
     $('[data-agent-retry]').hidden = true;
     let result, command;
     try {
-      if (blob.size > (config.max_audio_bytes || 10485760)) throw new Error('Audio hajmi 10 MB dan oshmasligi kerak.');
-      if (ticket) result = {status: 'processing', ticket};
-      else { const body = new FormData(); body.append('audio', await VoiceAudio.toWav(blob), 'command.wav'); body.append('request_id', requestId); result = await api(panel.dataset.transcribeUrl, body, 55000); }
-      ticket = result.ticket || ticket;
-      const deadline = Date.now() + 180000;
-      while (result.status === 'processing') {
-        if (Date.now() > deadline) throw new Error('Ovoz hali tanilmoqda. Qayta urinish shu yozuv holatini tekshiradi.');
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        result = await api(panel.dataset.pollUrl, {ticket}, 35000);
-      }
+      if (blob.size > (config.max_audio_bytes || 5242880)) throw new Error('Audio hajmi 5 MB dan oshmasligi kerak.');
+      const body = new FormData();
+      body.append('audio', await VoiceAudio.toWav(blob), 'command.wav');
+      result = await api(panel.dataset.transcribeUrl, body, 55000);
       command = result.transcript || '';
       if (!command.trim()) throw new Error('Ovozdan matn topilmadi. Qayta gapiring.');
       input.value = command; retryAction = undefined;
       show('Eshitilgan matn tayyor. Uni tuzatishingiz va yuborishingiz mumkin.');
     } catch (error) {
       show(error.message, true);
-      // A terminal failed job will never resume. Only an explicit click starts
-      // a new generation; uncertain/network failures keep their original key.
-      if (['voicelab_overloaded', 'voicelab_unavailable'].includes(error.data?.error)) {
-        ticket = null; requestId = crypto.randomUUID();
-      }
-      retryAction = () => transcribe(blob, name, requestId, ticket);
+      // Muxlisa has no idempotency key: a retry is a new, separately billed call.
+      retryAction = () => transcribe(blob, name);
       $('[data-agent-retry]').hidden = false;
     } finally { busy = false; controls(); }
     if (command && !review.checked && !panel.hidden) send(command);

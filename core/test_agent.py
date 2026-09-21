@@ -18,7 +18,7 @@ from .models import AgentConversation, AgentProposal, AgentTurn, Department, Eve
 from .services import task_action
 
 
-@override_settings(OPENAI_API_KEY='test-openai-key', VOICELAB_API_KEY='test-voicelab-key',
+@override_settings(OPENAI_API_KEY='test-openai-key', MUXLISA_API_KEY='test-muxlisa-key',
     PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'],
     STORAGES={'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
               'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'}})
@@ -176,7 +176,7 @@ class AgentTests(AgentTestBase):
         self.assertFalse(payload['parallel_tool_calls'])
         self.assertIn('current_task_id', payload['instructions'])
         self.assertTrue(all(tool['strict'] for tool in payload['tools']))
-        self.assertNotIn('test-voicelab-key', request.content.decode())
+        self.assertNotIn('test-muxlisa-key', request.content.decode())
         speech = signing.loads(result.json()['reply_token'], salt='voice-tts')
         self.assertEqual(speech['user'], self.head.pk)
 

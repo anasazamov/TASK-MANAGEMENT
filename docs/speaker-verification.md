@@ -40,7 +40,7 @@ Runtime: sherpa-onnx 1.13.8, CPU, ikki oqim.
    soniya nutq kerak.
 3. CAMPPlus umumiy embedding va kesishuvchi 2,5 soniyalik bo‘laklarni namunaning
    markazi bilan solishtiradi. Hozirgi chegaralar: umumiy 0,65; har bo‘lak 0,60.
-4. Faqat mos kelgan audio VoiceLab STT’ga yuboriladi. Mos kelmagan ovoz OpenAI’ga
+4. Faqat mos kelgan audio Muxlisa STT’ga yuboriladi. Mos kelmagan ovoz OpenAI’ga
    buyruq bermaydi va agentning ovozli javobini to‘xtatmaydi. Jonli mikrofon
    keyingi gapni tinglashda davom etadi.
 

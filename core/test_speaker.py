@@ -22,7 +22,7 @@ class VoiceWithoutEnrollmentTests(TestCase):
   for path in ['/account/voice/','/account/voice/enroll/','/account/voice/remove/']:
    self.assertEqual(self.client.get(path).status_code,404)
  def test_upload_without_profile_reaches_stt(self):
-  with patch('core.voicelab.transcribe',return_value={'status':'completed','text':'Tasdiqlayman'}) as stt:
+  with patch('core.muxlisa.transcribe',return_value={'status':'completed','transcript':'Tasdiqlayman'}) as stt:
    result=self.client.post('/voice/transcribe/',{'audio':SimpleUploadedFile('audio.wav',b'audio'), 'request_id':str(uuid.uuid4())})
   self.assertEqual(result.status_code,200)
   stt.assert_called_once()

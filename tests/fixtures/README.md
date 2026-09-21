@@ -1,1 +1,1 @@
-`synthetic-uzbek.pcm`: VoiceLab orqali loyiha sinovi uchun yaratilgan «Shu topshiriq kimga berilgan?» jumlasi. Haqiqiy foydalanuvchi mikrofoni yozuvi emas. 16 kHz mono signed PCM16 little-endian. Faqat mahalliy Silero VAD testi uchun.
+`synthetic-uzbek.pcm`: TTS orqali loyiha sinovi uchun yaratilgan «Shu topshiriq kimga berilgan?» jumlasi. Haqiqiy foydalanuvchi mikrofoni yozuvi emas. 16 kHz mono signed PCM16 little-endian. Faqat mahalliy Silero VAD testi uchun.

@@ -24,7 +24,7 @@
   let ready = false, llmReady = false, ttsReady = false, state = 'checking', recorder, stream, timer, requestController;
   let processingActive = false, replyToken, speechUrl, speechController, speechGeneration = 0, speechShortened = false;
   let recordingGeneration = 0, cancelled = false, lastAudio, playbackUrl, deadlineKind = 'unspecified';
-  let maxSeconds = 29, maxBytes = 10 * 1024 * 1024;
+  let maxSeconds = 29, maxBytes = 5 * 1024 * 1024;
   const microphoneSupported = () => window.isSecureContext && navigator.mediaDevices?.getUserMedia && window.MediaRecorder;
   const showStatus = (message, error = false) => {
     status.textContent = message;
@@ -90,7 +90,7 @@
       ttsReady = config.tts;
       maxSeconds = config.max_seconds;
       maxBytes = config.max_audio_bytes;
-      const missing = [!config.stt && 'VoiceLab', !llmReady && 'OpenAI'].filter(Boolean);
+      const missing = [!config.stt && 'Muxlisa AI', !llmReady && 'OpenAI'].filter(Boolean);
       showStatus(missing.length ? `${missing.join(' va ')} API kaliti sozlanmagan. Administratorga murojaat qiling.`
         : microphoneSupported() ? 'Mikrofonni bosing. Ijrochi, topshiriq va muddatni ayting.'
         : 'Bu brauzerda mikrofon yozuvi mavjud emas. Audio fayl tanlang yoki buyruqni matn bilan kiriting.', Boolean(missing.length));
@@ -170,22 +170,8 @@
     try {
       showStatus('Ovoz matnga aylantirilmoqda…');
       const data = new FormData();
-      if (!lastAudio.ticket) data.append('audio', await VoiceAudio.toWav(lastAudio.blob), 'command.wav');
-      data.append('request_id', lastAudio.requestId);
-      let result = lastAudio.ticket ? {status: 'processing', ticket: lastAudio.ticket}
-        : await api(panel.dataset.transcribeUrl, {method: 'POST', body: data});
-      if (result.status === 'processing') {
-        lastAudio.ticket = result.ticket;
-        const until = Date.now() + 180000;
-        while (result.status === 'processing' && !cancelled && Date.now() < until) {
-          showStatus('VoiceLab yozuvni qayta ishlamoqda… Kutishingiz yoki bekor qilishingiz mumkin.');
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          if (cancelled) return;
-          result = await api(panel.dataset.pollUrl, {method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ticket: lastAudio.ticket})});
-        }
-        if (!cancelled && result.status === 'processing') throw new Error('Yozuv hali tayyor emas. Birozdan so‘ng qayta urinish tugmasini bosing.');
-      }
+      data.append('audio', await VoiceAudio.toWav(lastAudio.blob), 'command.wav');
+      const result = await api(panel.dataset.transcribeUrl, {method: 'POST', body: data});
       if (cancelled) return;
       command.value = result.transcript;
       transcribed = true;
@@ -194,9 +180,6 @@
       else showStatus('Ovoz matnga aylantirildi. Maydonlarni agent bilan to‘ldirish uchun OpenAI kaliti kerak.');
     } catch (error) {
       showStatus(error.message + (transcribed && !cancelled ? ' Eshitilgan matn saqlandi; tuzatib «Agent bilan to‘ldirish»ni bosing.' : ''), !cancelled);
-      if (['voicelab_overloaded', 'voicelab_unavailable'].includes(error.code)) {
-        lastAudio.ticket = null; lastAudio.requestId = crypto.randomUUID();
-      }
       retryButton.hidden = transcribed;
     } finally { processingActive = false; setState('idle'); }
   }

@@ -96,10 +96,10 @@ STALE_DAYS = 14
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '').strip()
 OPENAI_TASK_MODEL = os.getenv('OPENAI_TASK_MODEL', 'gpt-5.6-sol').strip()
 OPENAI_TASK_REASONING = os.getenv('OPENAI_TASK_REASONING', 'low').strip()
-VOICELAB_API_KEY = os.getenv('VOICELAB_API_KEY', '').strip()
-# Pin the neutral Uzbek voice instead of inheriting the catalog's first character voice.
-VOICELAB_VOICE_ID = os.getenv('VOICELAB_VOICE_ID', '').strip() or 'voice_01J9NEUTRAL0000000000000001'
-VOICE_MAX_AUDIO_BYTES = 10 * 1024 * 1024
+MUXLISA_API_KEY = os.getenv('MUXLISA_API_KEY', '').strip()
+# Muxlisa speaker id: 0 — ayol ovozi, 1 — erkak ovozi.
+MUXLISA_SPEAKER = 1 if os.getenv('MUXLISA_SPEAKER', '0').strip() == '1' else 0
+VOICE_MAX_AUDIO_BYTES = 5 * 1024 * 1024
 VOICE_MAX_SECONDS = 29
 VOICE_REQUESTS_PER_MINUTE = 24
 VOICE_SPEAKER_MODEL = BASE_DIR / 'private_models' / '3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx'

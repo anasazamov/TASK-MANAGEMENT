@@ -11,7 +11,6 @@ urlpatterns = [
     path('tasks/new/', views.task_create, name='task_create'),
     path('voice/status/', voice_views.status, name='voice_status'),
     path('voice/transcribe/', voice_views.transcribe, name='voice_transcribe'),
-    path('voice/transcription-status/', voice_views.transcription_status, name='voice_transcription_status'),
     path('voice/draft/', voice_views.draft, name='voice_draft'),
     path('voice/speak/', voice_views.speak, name='voice_speak'),
     path('voice/realtime-session/', realtime.session, name='voice_realtime_session'),

@@ -11,7 +11,7 @@ from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from . import agent, agent_tools, voice, voicelab
+from . import agent, agent_tools, muxlisa, voice
 from .models import AgentConversation, AgentProposal, AgentTurn
 from .speech_text import spoken_text
 from .voice_errors import VoiceError
@@ -51,7 +51,7 @@ def current_proposal(conversation):
 
 
 def speech_reply(user, result):
-    text = voicelab.speech_excerpt(spoken_text(result['message']))
+    text = muxlisa.speech_excerpt(spoken_text(result['message']))
     result['reply_token'] = signing.dumps({'user': user.pk, 'text': text, 'id': 'tts-' + uuid.uuid4().hex}, salt='voice-tts')
     return result
 

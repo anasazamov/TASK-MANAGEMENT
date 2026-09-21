@@ -155,12 +155,13 @@ function playerHarness(fetcher) {
   return {player:new context.window.TaskRealtime.StreamPlayer(audio),buffers,sources,audio};
 }
 const pcmLine=()=>JSON.stringify({type:'audio',data:Buffer.from([0,128,255,127]).toString('base64')})+'\n';
+const readyLine=(rate=24000)=>JSON.stringify({type:'ready',sample_rate:rate})+'\n';
 function responseFor(read) {return {ok:true,headers:{get:()=> 'application/x-ndjson'},body:{getReader:()=>({read})}};}
 
 test('PCM playback starts before the HTTP stream completes and schedules chunks in order',async(t)=>{
   let release,started; const first=new Promise(done=>started=done); let reads=0;
   const h=playerHarness(async()=>responseFor(async()=>{
-    if (++reads===1) return {value:Buffer.from(pcmLine()+pcmLine()),done:false};
+    if (++reads===1) return {value:Buffer.from(readyLine()+pcmLine()+pcmLine()),done:false};
     if (reads===2) return new Promise(done=>release=done);
     return {done:true};
   }));
@@ -178,7 +179,7 @@ test('PCM playback starts before the HTTP stream completes and schedules chunks 
 test('barge-in aborts HTTP, stops scheduled audio, and ignores late audio chunks',async(t)=>{
   let release,started,signal; const first=new Promise(done=>started=done); let reads=0;
   const h=playerHarness(async(url,options)=>{signal=options.signal; return responseFor(async()=>{
-    if (++reads===1) return {value:Buffer.from(pcmLine()),done:false};
+    if (++reads===1) return {value:Buffer.from(readyLine()+pcmLine()),done:false};
     return new Promise(done=>release=done);
   });});
   t.after(()=>h.player.stop());
@@ -188,29 +189,33 @@ test('barge-in aborts HTTP, stops scheduled audio, and ignores late audio chunks
   assert.equal(h.sources.length,1); assert.equal(h.player.playing,false);
 });
 
-test('TTS recovery updates progress and starts only the replacement audio',async(t)=>{
-  let release,started,reads=0;const first=new Promise(done=>started=done),events=[];
+test('the provider sample rate from the ready event is used for playback',async(t)=>{
+  let release,started;const first=new Promise(done=>started=done);let reads=0;
   const h=playerHarness(async()=>responseFor(async()=>{
-    if (++reads===1) return {value:Buffer.from('{"type":"ready"}\n{"type":"recovering","message":"Qayta tayyorlanmoqda"}\n'),done:false};
-    if (reads===2) return {value:Buffer.from('{"type":"ready"}\n'+pcmLine()),done:false};
-    if (reads===3) return new Promise(done=>release=done);
+    if (++reads===1) return {value:Buffer.from(readyLine(22050)+pcmLine()),done:false};
+    if (reads===2) return new Promise(done=>release=done);
     return {done:true};
   }));
   t.after(()=>h.player.stop());
-  const playing=h.player.play('/speak','signed','csrf',()=>{events.push('start');started();},message=>{
-    assert.equal(h.sources.length,0);events.push(message);
-  });
-  await first;
-  assert.deepEqual(events,['Qayta tayyorlanmoqda','start']);assert.equal(h.sources.length,1);
+  const playing=h.player.play('/speak','signed','csrf',started); await first;
+  assert.equal(h.buffers[0].rate,22050);
   release({value:Buffer.from('{"type":"done"}\n'),done:false});h.sources[0].onended();
   await playing;assert.equal(h.player.playing,false);
+});
+
+test('audio without a valid ready event is refused',async()=>{
+  for (const head of ['',JSON.stringify({type:'ready',sample_rate:1000})+'\n']) {
+    const h=playerHarness(async()=>responseFor(async()=>({value:Buffer.from(head+pcmLine()+'{"type":"done"}\n'),done:true})));
+    await assert.rejects(h.player.play('/speak','signed','csrf',()=>{}));
+    assert.equal(h.sources.length,0);
+  }
 });
 
 test('a 350 ms delivery stall does not insert a pause between 100 ms audio chunks',async(t)=>{
   let release,started,reads=0;const first=new Promise(done=>started=done);
   const chunk=JSON.stringify({type:'audio',data:Buffer.alloc(4800).toString('base64')})+'\n';
   const h=playerHarness(async()=>responseFor(async()=>{
-    if (++reads===1) return {value:Buffer.from(chunk),done:false};
+    if (++reads===1) return {value:Buffer.from(readyLine()+chunk),done:false};
     if (reads===2) return new Promise(done=>release=done);
     return {done:true};
   }));

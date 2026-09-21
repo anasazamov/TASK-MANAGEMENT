@@ -1,7 +1,7 @@
 # Suhbat agenti — model yangilanishi
 
 Sana: 2026-09-18. Model: `gpt-5.6-sol`, reasoning: `low`.
-Oldingi konfiguratsiya: `gpt-4.1-mini`. STT va TTS: VoiceLab.
+Oldingi konfiguratsiya: `gpt-4.1-mini`. STT va TTS: Muxlisa AI.
 
 Haqiqiy OpenAI API bilan Django `/agent/message/` endpointi tekshirildi.
 Sinov alohida vaqtinchalik suhbatda, raisning mavjud ko‘rish doirasida o‘tkazildi.
@@ -32,6 +32,6 @@ Yangi testlar reasoning javobini keyingi tool so‘roviga uzatish, eski modelga 
 ro‘yxat tuzatishlari, xodim ko‘rish huquqi va cheklangan qayta urinishni tekshiradi.
 
 Bu matnga aylangan buyruqlarning cheklangan regressiya sinovi; mikrofon orqali
-sheva, fon suhbati yoki VoiceLab transkripsiya aniqligi o‘lchovi emas.
+sheva, fon suhbati yoki Muxlisa transkripsiya aniqligi o‘lchovi emas.
 
 Model hujjati: [GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol).

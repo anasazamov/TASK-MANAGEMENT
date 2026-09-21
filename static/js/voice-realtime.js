@@ -74,7 +74,7 @@
       const socket = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + data.websocket_path);
       socket.onopen = () => { if (this.socket === socket && this.active) socket.send(JSON.stringify({ticket: data.ticket})); };
       this.socket = socket;
-      this.deadline = setTimeout(() => this.fail('Jonli ulanish ochilmadi. Server va VoiceLab realtime ruxsatini tekshiring.'), 20000);
+      this.deadline = setTimeout(() => this.fail('Jonli ulanish ochilmadi. Server sozlamalarini tekshiring.'), 20000);
       socket.onmessage = event => {
         if (!this.active || this.socket !== socket || version !== this.version) return;
         try {
@@ -110,17 +110,17 @@
               this.connect(version).catch(error => { if (this.active && version === this.version) this.fail(error.message); });
             } else if (['service_unavailable', 'realtime_stt_unavailable', 'overloaded', 'timeout', 'busy', 'connection_failed', 'recognition_failed', 'invalid_audio'].includes(message.code) && ++this.failures < 3) {
               this.finishSocket(socket);
-              this.options.onState('reconnecting', 'Bu gap tanilmadi: VoiceLab xizmati vaqtincha javob bermadi. Ulanish tiklangach qayta ayting.');
+              this.options.onState('reconnecting', 'Bu gap tanilmadi: Muxlisa xizmati vaqtincha javob bermadi. Ulanish tiklangach qayta ayting.');
               this.recoveryTimer = setTimeout(() => {
                 if (this.active && version === this.version) this.connect(version).catch(error => { if (this.active && version === this.version) this.fail(error.message); });
               }, this.failures * 1000);
             } else {
-              const messages = {insufficient_credits: 'VoiceLab krediti yoki API kalit limiti tugagan. Balans va kalit limitini tekshiring.',
-                forbidden: 'VoiceLab kalitida nutqni tanish ruxsati yo‘q.', rate_limit: 'Ovoz so‘rovlari limiti tugadi. Bir daqiqadan keyin qayta yoqing.'};
+              const messages = {insufficient_credits: 'Muxlisa hisobida mablag‘ tugagan. Balansni tekshiring.',
+                forbidden: 'Muxlisa kalitida nutqni tanish ruxsati yo‘q.', rate_limit: 'Ovoz so‘rovlari limiti tugadi. Bir daqiqadan keyin qayta yoqing.'};
               this.fail(messages[message.code] || 'Nutqni tanish xizmati vaqtincha ishlamayapti. Birozdan keyin suhbatni qayta yoqing.');
             }
           }
-        } catch (_) { this.fail('VoiceLab jonli javobi kutilgan formatda emas.'); }
+        } catch (_) { this.fail('Jonli javob kutilgan formatda emas.'); }
       };
       socket.onerror = () => { if (this.socket === socket) this.fail('Server bilan jonli ulanish ochilmadi. Sahifani yangilab suhbatni qayta yoqing.'); };
       socket.onclose = () => {
@@ -157,10 +157,10 @@
       for (const source of this.sources) { source.onended = null; try { source.stop(); } catch (_) {} }
       this.sources.clear(); this.playing = false; this.finish?.(); this.finish = null;
     }
-    async play(url, token, csrf, onStart, onRecovering) {
+    async play(url, token, csrf, onStart) {
       this.stop(); const version = this.version;
       const controller = new AbortController(); this.controller = controller;
-      let next = 0, started = false, done = false;
+      let next = 0, started = false, done = false, rate = 0;
       const timeout = setTimeout(() => controller.abort(), 65000);
       try {
         await this.context.resume();
@@ -183,12 +183,16 @@
             if (!line) continue;
             const item = JSON.parse(line);
             if (item.type === 'error') throw new Error(item.message);
-            if (item.type === 'recovering') { onRecovering?.(item.message); continue; }
+            if (item.type === 'ready') {
+              if (!Number.isInteger(item.sample_rate) || item.sample_rate < 8000 || item.sample_rate > 48000) throw new Error('Ovoz formati qo‘llanmaydi.');
+              rate = item.sample_rate; continue;
+            }
             if (item.type === 'done') { done = true; continue; }
             if (item.type !== 'audio') continue;
             const bytes = Uint8Array.from(atob(item.data), char => char.charCodeAt(0));
             if (bytes.length % 2) throw new Error('Ovoz formati buzilgan.');
-            const view = new DataView(bytes.buffer), buffer = this.context.createBuffer(1, bytes.length/2, 24000);
+            if (!rate) throw new Error('Ovoz oqimi formati kelmadi.');
+            const view = new DataView(bytes.buffer), buffer = this.context.createBuffer(1, bytes.length/2, rate);
             const channel = buffer.getChannelData(0);
             for (let n = 0; n < channel.length; n++) channel[n] = view.getInt16(n*2, true) / 32768;
             const source = this.context.createBufferSource(); source.buffer = buffer; source.connect(this.context.destination);

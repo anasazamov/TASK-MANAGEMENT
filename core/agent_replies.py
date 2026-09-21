@@ -15,8 +15,9 @@ from .agent_tools import Arguments
 
 class Answer(Arguments):
     source: str = Field(min_length=1, max_length=12)
-    focus: Literal['overview', 'count', 'assignee', 'deadline', 'status', 'description', 'history', 'children', 'actions'] = Field(
-        description='Use overview when several facts are requested: it includes assignee, deadline, title and status. Use a specific focus only for a single question.')
+    focus: Literal['overview', 'count', 'assignee', 'deadline', 'status', 'description', 'history', 'children', 'actions', 'top', 'bottom'] = Field(
+        description='Use overview when several facts are requested: it includes assignee, deadline, title and status. Use a specific focus only for a single question. '
+                    'For a dyn_ tool result, top/bottom answer "eng ko‘p / kim ko‘p / eng kam" by the FIRST numeric column; the server reports ties.')
 
 
 class Clarify(Arguments):
@@ -68,6 +69,35 @@ def lines(items):
     return '\n'.join(f'{i}. {item}' for i, item in enumerate(items, 1))
 
 
+def cell(item):
+    if isinstance(item, float):
+        return f'{item:.2f}'
+    return '—' if item is None else str(item)
+
+
+def describe(row):
+    return '; '.join(k+': '+cell(v) for k, v in row.items())
+
+
+def extreme(rows, highest):
+    numeric = [k for k in (rows[0] if rows else {})
+               if all(type(r[k]) in (int, float) for r in rows)]
+    if not numeric:
+        return 'Natijada taqqoslanadigan son ustuni yo‘q.'
+    key = numeric[0]
+    best = (max if highest else min)(r[key] for r in rows)
+    winners = [r for r in rows if r[key] == best]
+    label = ('Eng ko‘p' if highest else 'Eng kam')+f' {key}: {cell(best)}.'
+    if len(winners) == 1:
+        return label+' '+describe(winners[0])
+    if len(winners) == len(rows):
+        label += f' Barcha {len(rows)} ta qatorda qiymat teng, bittasini ajratib bo‘lmaydi.'
+    else:
+        label += f' Bu qiymat {len(winners)} ta qatorda teng.'
+    shown = lines([describe(r) for r in winners[:40]])
+    return label+'\n'+shown+('\n…' if len(winners) > 40 else '')
+
+
 def render(name, data, focus='overview'):
     if name == 'create_tool':
         return data['message']
@@ -75,16 +105,14 @@ def render(name, data, focus='overview'):
         result = data['data']
         if 'rows' not in result:
             return render(data['result_kind'], result, focus)
+        if focus in ('top', 'bottom'):
+            return extreme(data.get('all_rows') or result['rows'], focus == 'top')
         message = f"Natija: {result['total']} ta qator."
         if result.get('truncated'):
             message += ' Quyida dastlabki qismi ko‘rsatilgan.'
         if focus == 'count':
             return message
-        def value(item):
-            if isinstance(item, float):
-                return f'{item:.2f}'
-            return '—' if item is None else str(item)
-        return message+'\n'+lines(['; '.join(k+': '+value(v) for k, v in row.items()) for row in result['rows']])
+        return message+'\n'+lines([describe(row) for row in result['rows']])
     if name == 'read_structure':
         departments = {item['id']: item['name'] for item in data['departments']}
         return 'Bo‘linmalar:\n'+lines(departments.values())+'\nXodimlar:\n'+lines([

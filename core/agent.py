@@ -345,6 +345,6 @@ def respond(user, conversation, command, path, references):
                     'choices': [{'id': p['id'], 'name': p['name']} for p in result['people']]}
             source_id = 'r'+str(len(sources)+1)
             sources[source_id] = (call.name, result)
-            result = {**result, 'source_id': source_id}
+            result = {**{k: v for k, v in result.items() if k != 'all_rows'}, 'source_id': source_id}
             inputs.append({'type': 'function_call_output', 'call_id': call.call_id, 'output': json.dumps(result, ensure_ascii=False)})
     return {'message': 'So‘rov bir necha qadamdan iborat. Qaysi topshiriq yoki amalni avval bajarishni aniqlashtiring.', 'mode': 'ai'}

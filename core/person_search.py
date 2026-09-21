@@ -26,6 +26,12 @@ def variants(word):
     return {word} | {word[:-len(s)] for s in SUFFIXES if word.endswith(s) and len(word)-len(s) >= 3}
 
 
+def spelling(word):
+    # Uzbek spelling variants of one name: Xalimov/Halimov, Shohnazarov/Shonazarov, Ahmedov/Axmedov/Amedov.
+    word = word.replace('x', 'h')
+    return re.sub(r'(?<=[aeiou])h(?=[^aeiou]|$)', '', word)
+
+
 def one_edit(a, b):
     if min(len(a), len(b)) < 4 or max(len(a), len(b)) < 5 or abs(len(a)-len(b)) > 1:
         return False
@@ -54,15 +60,21 @@ def find_people(candidates, query, limit=40):
     if not query.strip():
         matches, kind = [p for p, _ in entries], 'list'
     elif tokens and len(tokens) <= 8:
+        same_spelling = lambda a, b: spelling(b) in {spelling(v) for v in variants(a)}
         for mode, predicate in (
             ('exact', lambda a, b: a == b),
             ('inflected', lambda a, b: b in variants(a)),
-            ('suggested', lambda a, b: any((len(v) >= 3 and b.startswith(v)) or one_edit(v, b) for v in variants(a))),
+            ('spelling', same_spelling),
+            ('suggested', lambda a, b: any((len(v) >= 3 and (b.startswith(v) or spelling(b).startswith(spelling(v))))
+                                           or one_edit(v, b) for v in variants(a))),
         ):
             matches = [p for p, name in entries if all_tokens(tokens, name, predicate)]
             if matches:
                 kind = mode
                 break
+        if kind in ('exact', 'inflected'):
+            # Speech cannot tell Shohnazarov from Shonazarov; show both instead of picking one.
+            matches += [p for p, name in entries if p not in matches and all_tokens(tokens, name, same_spelling)]
         if not matches:
             matches = [p for p, _ in entries if all(t in ' '.join(words(p.job_title+' '+
                 (p.department.name if p.department else ''))) for t in tokens)]

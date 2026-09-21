@@ -95,7 +95,9 @@ async def recognize(upstream, pcm, send):
     if code in RECOVERABLE_STT:
         await send({'type': 'websocket.send', 'text': json.dumps({'event': 'processing', 'stage': 'recovering'})})
         # A fresh UUID binds the single fallback attempt to this utterance.
-        return await fallback_transcription(bytes(pcm), str(uuid.uuid4()))
+        result = await fallback_transcription(bytes(pcm), str(uuid.uuid4()))
+        logger.warning('STT fallback result=%s', 'ok' if result.get('event') == 'final' else result.get('code'))
+        return result
     return stt_error(code)
 
 

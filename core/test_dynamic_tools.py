@@ -109,6 +109,38 @@ class DynamicToolTests(AgentTestBase):
         self.assertEqual(conversation_for(User.objects.get(pk=self.head.pk), str(self.conversation.pk)).tools, {})
         self.assertEqual(AgentConversation.objects.get(pk=self.conversation.pk).tools, {})
 
+    def per_assignee(self):
+        dynamic_tools.create(self.head, self.conversation, definition('dyn_per_assignee', [], [
+            step('tasks', 'query_tasks', status='all', assignee_id=None, query='', fields=['assignee']),
+            step('grouped', 'group_rows', rows='$steps.tasks.rows', by=['assignee'], metrics=[
+                {'name': 'count', 'operation': 'count', 'field': None}])]))
+
+    def ask_top(self, focus='top'):
+        with self.model(self.call('dyn_per_assignee'), self.call('answer_from_source', source='r1', focus=focus)):
+            return self.message('Ko‘p kimniki?').json()['message']
+
+    def test_top_reports_ties_instead_of_listing_or_guessing(self):
+        Task.objects.create(issuer=self.chair, assignee=self.head, title='Boshqa ish')
+        self.per_assignee()
+        message = self.ask_top()
+        self.assertIn('Eng ko‘p count: 1.', message)
+        self.assertIn('Barcha 2 ta qatorda qiymat teng', message)
+        self.assertNotIn('Natija:', message)
+
+    def test_top_and_bottom_name_single_row_from_full_result(self):
+        Task.objects.bulk_create([Task(issuer=self.chair, assignee=self.head, title=f'Ish {i}') for i in range(3)])
+        self.per_assignee()
+        self.assertEqual(self.ask_top(), 'Eng ko‘p count: 3. assignee: Tuyliyev; count: 3')
+        self.assertEqual(self.ask_top('bottom'), f'Eng kam count: 1. assignee: {self.employee.full_name}; count: 1')
+
+    def test_top_uses_rows_beyond_model_sample(self):
+        Task.objects.bulk_create([Task(issuer=self.head, assignee=self.employee, title=f'Vazifa {i}') for i in range(45)])
+        dynamic_tools.create(self.head, self.conversation, definition('dyn_per_assignee', [], [
+            step('tasks', 'query_tasks', status='all', assignee_id=None, query='', fields=['id'])]))
+        message = self.ask_top()
+        self.assertIn('Eng ko‘p id: '+str(Task.objects.latest('pk').pk), message)
+        self.assertNotIn('all_rows', self.requests[-1].content.decode())
+
     def test_large_results_are_truncated_before_reaching_model(self):
         Task.objects.bulk_create([Task(issuer=self.head, assignee=self.employee, title=f'Vazifa {i}') for i in range(60)])
         raw = definition('dyn_all_titles', [], [step('tasks', 'query_tasks', status='all', assignee_id=None, query='Vazifa', fields=['title'])])

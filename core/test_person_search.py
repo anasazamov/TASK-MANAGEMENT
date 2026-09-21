@@ -32,6 +32,27 @@ class PersonSearchTests(TestCase):
         for query in ['Ulugbek', "Ulug'bek", 'Улуғбекнинг']:
             self.assertEqual(self.search(query)['people'][0]['id'], self.ulugbek.pk)
 
+    def test_uzbek_spelling_variants_match_without_clarification(self):
+        halimov = User.objects.create(username='halimov', full_name='Xalimov Farrux Zafarzoda')
+        ahmedov = User.objects.create(username='ahmedov', full_name='Ahmedov Ilhom Ismoilovich')
+        for query, person in [('Shohnazarovni', self.sherzod2), ('Шоҳназаров', self.sherzod2),
+                              ('Halimovning', halimov), ('Axmedov', ahmedov), ('Amedov', ahmedov),
+                              ('Ilxom Ahmedov', ahmedov)]:
+            with self.subTest(query=query):
+                result = self.search(query)
+                self.assertEqual([p['id'] for p in result['people']], [person.pk])
+                self.assertFalse(result['needs_clarification'])
+                self.assertEqual(result['match'], 'spelling')
+
+    def test_spelling_variants_of_two_people_still_require_clarification(self):
+        other = User.objects.create(username='shoh', full_name='Shohnazarov Bobur')
+        for query in ['Shohnazarov', 'Shonazarovni', 'Shohnazaro']:
+            with self.subTest(query=query):
+                result = self.search(query)
+                self.assertEqual({p['id'] for p in result['people']}, {other.pk, self.sherzod2.pk})
+                self.assertTrue(result['needs_clarification'])
+        self.assertEqual([p['id'] for p in self.search('Shohnazarov Bobur')['people']], [other.pk])
+
     def test_first_name_does_not_match_another_person_patronymic_prefix(self):
         self.assertEqual([p['id'] for p in self.search('Akmal')['people']], [self.akmal.pk])
 

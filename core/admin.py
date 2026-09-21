@@ -1,18 +1,17 @@
+"""Superuser-only view of the data. Workflow records stay read-only here.
+
+Agent conversations, proposals and voice profiles are deliberately absent: they
+hold transcripts and biometric data that no administration screen needs.
+"""
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import Department, User, Task, DeadlineRequest, Event, Notification
+
+from .models import (DeadlineRequest, Department, Event, GeneratedPage, Notification,
+                     PushSubscription, Task, TaskAttachment, TaskParticipant, User)
 
 
-@admin.register(User)
-class CustomUserAdmin(UserAdmin):
-    fieldsets = UserAdmin.fieldsets + (('Tashkilot', {'fields': ('full_name', 'job_title', 'role', 'department')}),)
-    add_fieldsets = UserAdmin.add_fieldsets + (('Tashkilot', {'fields': ('full_name', 'job_title', 'role', 'department')}),)
-    list_display = ['username', 'full_name', 'role', 'department', 'is_active']
-
-
-@admin.register(Event, Task, DeadlineRequest, Notification)
-class ReadOnlyWorkflowAdmin(admin.ModelAdmin):
-    # Workflow records can only be changed through the permission-checked services.
+class ReadOnly:
+    """Changes belong to the services, which check roles and write history."""
     def has_add_permission(self, request):
         return False
 
@@ -23,5 +22,78 @@ class ReadOnlyWorkflowAdmin(admin.ModelAdmin):
         return False
 
 
-admin.site.register(Department)
+@admin.register(User)
+class CustomUserAdmin(UserAdmin):
+    fieldsets = UserAdmin.fieldsets + (
+        ('Tashkilot', {'fields': ('full_name', 'job_title', 'role', 'department', 'phone', 'telegram_id')}),)
+    add_fieldsets = UserAdmin.add_fieldsets + (
+        ('Tashkilot', {'fields': ('full_name', 'job_title', 'role', 'department', 'phone')}),)
+    readonly_fields = ['telegram_id']
+    list_display = ['username', 'full_name', 'role', 'department', 'phone', 'linked', 'is_active']
+    list_filter = ['role', 'is_active', 'department']
+    search_fields = ['username', 'full_name', 'phone']
+    ordering = ['full_name']
+
+    @admin.display(boolean=True, description='Telegram')
+    def linked(self, item):
+        return item.telegram_id is not None
+
+
+@admin.register(Department)
+class DepartmentAdmin(admin.ModelAdmin):
+    list_display = ['name', 'head', 'staff']
+    search_fields = ['name']
+
+    @admin.display(description='Xodimlar')
+    def staff(self, item):
+        return item.employees.count()
+
+
+@admin.register(Task)
+class TaskAdmin(ReadOnly, admin.ModelAdmin):
+    list_display = ['code', 'title', 'assignee', 'issuer', 'status', 'due_at', 'letter_number']
+    list_filter = ['status', 'assignee__department']
+    search_fields = ['title', 'description', 'letter_number', 'assignee__full_name']
+    date_hierarchy = 'created_at'
+
+
+@admin.register(TaskParticipant)
+class TaskParticipantAdmin(ReadOnly, admin.ModelAdmin):
+    list_display = ['task', 'user', 'kind', 'part', 'status', 'created_at']
+    list_filter = ['kind', 'status']
+    search_fields = ['user__full_name', 'part']
+
+
+@admin.register(TaskAttachment)
+class TaskAttachmentAdmin(ReadOnly, admin.ModelAdmin):
+    list_display = ['name', 'task', 'size_label', 'uploaded_by', 'created_at']
+    search_fields = ['name', 'task__title']
+
+
+@admin.register(Event, DeadlineRequest, Notification)
+class WorkflowAdmin(ReadOnly, admin.ModelAdmin):
+    pass
+
+
+@admin.register(GeneratedPage)
+class GeneratedPageAdmin(ReadOnly, admin.ModelAdmin):
+    list_display = ['title', 'user', 'updated_at']
+    search_fields = ['title', 'user__full_name']
+
+    def has_delete_permission(self, request, obj=None):
+        return True  # An unwanted page should be removable without touching the database.
+
+
+@admin.register(PushSubscription)
+class PushSubscriptionAdmin(ReadOnly, admin.ModelAdmin):
+    list_display = ['user', 'endpoint', 'created_at', 'failed_at']
+    list_filter = ['failed_at']
+    search_fields = ['user__full_name']
+
+    def has_delete_permission(self, request, obj=None):
+        return True  # Revoking a browser's subscription is an administrative action.
+
+
 admin.site.site_header = 'Topshiriq nazorati · Administratsiya'
+admin.site.site_title = 'Topshiriq nazorati'
+admin.site.index_title = 'Ma’lumotlar'

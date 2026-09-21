@@ -54,6 +54,8 @@
     <footer class="page-footer"><span>Samarkand Invest Company</span><span>Topshiriq nazorati · {{ today|date:'Y' }}</span></footer>
   </main>
 </div>
+<div id="push-config" hidden data-push-key="{{ push_key }}" data-push-user="{{ user.pk }}" data-worker-url="{% url 'push_worker' %}" data-subscribe-url="{% url 'push_subscribe' %}" data-unsubscribe-url="{% url 'push_unsubscribe' %}">{% csrf_token %}</div>
+<script src="{% static 'js/push.js' %}" defer></script>
 <dialog class="task-drawer" id="task-drawer" aria-label="Topshiriq tafsilotlari"><button class="drawer-close icon-button" data-drawer-close aria-label="Tafsilotlarni yopish">{% icon 'close' %}</button><div id="drawer-content"></div></dialog>
 {% include 'core/_agent.html' %}
 {% else %}{% block unauthenticated %}{% endblock %}{% endif %}

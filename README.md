@@ -154,7 +154,15 @@ Nutq filtri: [Silero VAD](https://github.com/snakers4/silero-vad), [ONNX Runtime
 .\.venv\Scripts\python.exe manage.py send_reminders
 ```
 
-Bu buyruq muddat yaqinlashishi, buzilishi, zanjir bo‘yicha eskalatsiya va eskirgan muddatsiz vazifalar uchun **ilova ichidagi** xabarlarni yaratadi. Bir kunda takroriy ishga tushirish xabarlarni ko‘paytirmaydi. Doimiy ishlash uchun server scheduler/Windows Task Scheduler’da har soat ishga tushiring. Tizimda tashqi email/SMS/Telegram integratsiyasi yo‘q.
+**Brauzer bildirishnomalari (Web Push).** Xodim «Xabarnomalar» sahifasida «Bildirishnomani yoqish»ni bossa, yangi topshiriq, muddat va boshqa xabarlar sayt yopiq bo‘lganda ham brauzerga keladi (brauzer ishlab turishi kerak). Kalitlarni bir marta yarating va `.env` ga qo‘ying:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py push_keys
+```
+
+Talab: **haqiqiy HTTPS sertifikati**. Brauzer o‘z-o‘zidan imzolangan sertifikatli saytda service worker’ni bloklaydi, shuning uchun `mkcert` bilan yaratilgan va har bir kompyuterga ishonchli qilib o‘rnatilgan sertifikat yoki domen + Let’s Encrypt kerak. Bildirishnomada faqat sarlavha, topshiriq kodi va nomi bo‘ladi; matn va izohlar yuborilmaydi. Xodim ruxsatni brauzerdan istalgan payt qaytarib olishi mumkin, yaroqsiz obuna esa birinchi urinishda o‘chiriladi.
+
+Bu buyruq muddat yaqinlashishi, buzilishi, zanjir bo‘yicha eskalatsiya va eskirgan muddatsiz vazifalar uchun **ilova ichidagi** xabarlarni yaratadi (obuna bo‘lgan brauzerlarga push ham yuboriladi). Bir kunda takroriy ishga tushirish xabarlarni ko‘paytirmaydi. Doimiy ishlash uchun server scheduler/Windows Task Scheduler’da har soat ishga tushiring. Tizimda tashqi email/SMS/Telegram integratsiyasi yo‘q.
 
 ## Tekshirish
 
@@ -171,7 +179,16 @@ Bu buyruq muddat yaqinlashishi, buzilishi, zanjir bo‘yicha eskalatsiya va eski
 3. `python manage.py migrate` va `python manage.py collectstatic --noinput`.
 4. `python manage.py createsuperuser`; admin orqali rais hisobi yarating.
 5. `python serve.py --host 127.0.0.1 --port 8000`ni servis sifatida ishlating. Oldida HTTPS reverse proxy (Nginx/Caddy/IIS) bo‘lsin. `/voice/live-stream/` uchun WebSocket Upgrade, sessiya cookie va Origin headerlari o‘tsin. `/voice/realtime-speak/` javobini proxy buferlamasin; ulanish timeouti kamida 180 soniya bo‘lsin. `TRUST_PROXY_HTTPS=1`ni faqat proxy kiruvchi `X-Forwarded-Proto` headerini tozalab o‘zi yozsa yoqing.
-6. `python manage.py check --deploy`, DB backup, login rate limiting (reverse proxy darajasida), log monitoring va `send_reminders` schedulerini sozlang.
+6. `python manage.py seed_staff` bilan xodimlar ro‘yxatini yarating (boshlang‘ich parol `12345678`; xodimlar almashtirsin).
+7. Fayllar uchun MinIO/S3: `S3_ENDPOINT_URL`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET`. Bucket yopiq bo‘lsin — havolalar imzolanadi.
+8. Bildirishnomalar uchun `manage.py push_keys` natijasini `.env` ga qo‘ying. Ular ishlashi uchun **haqiqiy sertifikatli domen** kerak; obuna va brauzer ruxsati manzilga bog‘lanadi, shuning uchun domen o‘zgarsa xodimlar qaytadan yoqadi.
+9. `send_reminders` uchun scheduler: har soat ishga tushadigan qilib sozlang. Windows misoli (administrator sifatida, bitta qator):
+
+```powershell
+schtasks /create /tn "Topshiriq eslatmalari" /sc hourly /ru SYSTEM /tr "'D:\Example\TASK-MANAGEMENT\.venv\Scripts\python.exe' 'D:\Example\TASK-MANAGEMENT\manage.py' send_reminders"
+```
+
+10. `python manage.py check --deploy`, DB backup, login rate limiting (reverse proxy darajasida) va log monitoringni sozlang. `CSRF_TRUSTED_ORIGINS` da `*` emas, aniq domenni yozing: `*` faqat lokal tarmoq uchun.
 
 Production HTTPS cookie/redirect/HSTS sozlamalari `DEBUG=0`da yoqiladi. Static fayllarni WhiteNoise beradi. PostgreSQL va haqiqiy HTTPS serverga deploy lokal tekshiruv doirasiga kirmaydi.
 

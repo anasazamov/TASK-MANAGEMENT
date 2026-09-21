@@ -2,6 +2,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
+from core import push
 from core.models import Event, Notification, Task
 
 
@@ -24,11 +25,15 @@ class Command(BaseCommand):
                 created_any = False
                 for user_id in recipients:
                     key = f'{task.pk}:{state}:{timezone.localdate()}'
-                    _, created = Notification.objects.get_or_create(user_id=user_id, dedupe_key=key, defaults={
+                    notification, created = Notification.objects.get_or_create(user_id=user_id, dedupe_key=key, defaults={
                         'task': task, 'title': title if user_id in [task.issuer_id, task.assignee_id] else f'Eskalatsiya: {task.assignee.short_name} topshirig‘i kechikdi',
                     })
                     delivered += int(created)
                     created_any |= created
+                    if created:
+                        push.send(notification)
                 if created_any:
                     Event.objects.create(task=task, kind=Event.Kind.ALERT, body=f'{title}. {task.deadline_text}.')
-        self.stdout.write(self.style.SUCCESS(f'{delivered} notifications created.'))
+        dropped = push.prune()
+        self.stdout.write(self.style.SUCCESS(
+            f'{delivered} notifications created.' + (f' {dropped} dead push subscriptions removed.' if dropped else '')))

@@ -330,6 +330,22 @@ class GeneratedPage(models.Model):
         return reverse('generated_page', args=[self.pk])
 
 
+class PushSubscription(models.Model):
+    """One browser's push endpoint; the keys encrypt the payload for that browser only."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='push_subscriptions')
+    endpoint = models.URLField(max_length=500, unique=True)
+    p256dh = models.CharField(max_length=200)
+    auth = models.CharField(max_length=100)
+    created_at = models.DateTimeField(default=timezone.now)
+    failed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.user.short_name}: {self.endpoint[:40]}…'
+
+
 class AgentConversation(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE)

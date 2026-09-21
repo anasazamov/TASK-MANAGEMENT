@@ -9,8 +9,12 @@ from django.contrib.auth.views import LoginView
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
+import json
+
 from django.conf import settings
-from django.http import FileResponse, Http404, HttpResponse
+from django.contrib.staticfiles import finders
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
+from django.views.decorators.cache import never_cache
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.urls import reverse
@@ -21,7 +25,8 @@ from django.utils.html import escape
 from . import pages, reports
 from .forms import (ActionForm, AttachmentForm, ControllerForm, DepartmentForm, EmployeeEditForm,
                     EmployeeForm, LoginForm, ParticipantForm, PartActionForm, TaskForm)
-from .models import DeadlineRequest, Department, Event, Task, TaskAttachment, TaskParticipant, User
+from .models import (DeadlineRequest, Department, Event, PushSubscription, Task, TaskAttachment,
+                     TaskParticipant, User)
 from .permissions import can_add_participants, can_attach, can_control, can_delegate, can_manage
 from .services import add_attachment as add_task_attachment
 from .services import add_participant as add_task_participant
@@ -302,6 +307,38 @@ def employees(request):
         'rows': rows, 'week': week if period else '', 'default_week': reports.current_week(), 'period_label': reports.period_label(period)})
 
 
+@never_cache
+def push_worker(request):
+    # Served from the site root so the worker may cover every page, not /static/.
+    path = finders.find('js/push-worker.js')
+    response = FileResponse(open(path, 'rb'), content_type='text/javascript')
+    response['Service-Worker-Allowed'] = '/'
+    return response
+
+
+@login_required
+@require_POST
+def push_subscribe(request):
+    data = json.loads(request.body or '{}')
+    endpoint, keys = data.get('endpoint'), data.get('keys') or {}
+    if not isinstance(endpoint, str) or not endpoint.startswith('https://') or len(endpoint) > 500:
+        return JsonResponse({'error': 'invalid_endpoint'}, status=400)
+    if not all(isinstance(keys.get(name), str) and keys[name] for name in ('p256dh', 'auth')):
+        return JsonResponse({'error': 'invalid_keys'}, status=400)
+    PushSubscription.objects.update_or_create(
+        endpoint=endpoint, defaults={'user': request.user, 'p256dh': keys['p256dh'][:200],
+                                     'auth': keys['auth'][:100], 'failed_at': None})
+    return JsonResponse({'status': 'subscribed'})
+
+
+@login_required
+@require_POST
+def push_unsubscribe(request):
+    endpoint = json.loads(request.body or '{}').get('endpoint')
+    PushSubscription.objects.filter(user=request.user, endpoint=endpoint if isinstance(endpoint, str) else '').delete()
+    return JsonResponse({'status': 'unsubscribed'})
+
+
 @login_required
 def generated_pages(request):
     return render(request, 'core/pages.html', {'page_title': 'Agent sahifalari',
@@ -407,7 +444,7 @@ def password_change(request):
 def notifications(request):
     items = request.user.notifications.filter(task__in=tasks_for(request.user)).select_related('task')
     return render(request, 'core/notifications.html', {'page_title': 'Xabarnomalar', 'subtitle': 'Topshiriqlar bo‘yicha so‘nggi yangiliklar',
-        'items': Paginator(items, 30).get_page(request.GET.get('page'))})
+        'items': Paginator(items, 30).get_page(request.GET.get('page')), 'push_key': settings.VAPID_PUBLIC_KEY})
 
 
 @login_required

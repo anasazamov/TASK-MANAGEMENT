@@ -37,6 +37,9 @@ MIDDLEWARE = [
     'config.csrf.CsrfMiddleware', 'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware', 'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+# W003 looks for Django's own CSRF middleware by path; config.csrf.CsrfMiddleware
+# is that middleware, subclassed to honour CSRF_TRUSTED_ORIGINS='*'.
+SILENCED_SYSTEM_CHECKS = ['security.W003']
 ROOT_URLCONF = 'config.urls'
 TEMPLATES = [{
     'BACKEND': 'django.template.backends.django.DjangoTemplates', 'DIRS': [BASE_DIR / 'templates'],
@@ -90,6 +93,10 @@ if S3_ENDPOINT_URL:
         'default_acl': None,
         'signature_version': 's3v4',
     }}
+# Browser push notifications. Generate the pair with: manage.py push_keys
+VAPID_PUBLIC_KEY = os.getenv('VAPID_PUBLIC_KEY', '').strip()
+VAPID_PRIVATE_KEY = os.getenv('VAPID_PRIVATE_KEY', '').strip()
+VAPID_SUBJECT = os.getenv('VAPID_SUBJECT', 'mailto:admin@example.uz').strip()
 TASK_FILE_MAX_BYTES = 25 * 1024 * 1024
 TASK_FILE_EXTENSIONS = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt',
                         '.rtf', '.csv', '.jpg', '.jpeg', '.png', '.heic', '.zip', '.rar', '.7z'}

@@ -19,8 +19,9 @@ def log(task, actor, kind, body):
 
 
 def notify(task, users, title):
+    from . import push
     for user_id in {u.pk for u in users if u and u.is_active}:
-        Notification.objects.create(task=task, user_id=user_id, title=title)
+        push.send(Notification.objects.create(task=task, user_id=user_id, title=title))
 
 
 def mark_seen(task, user):

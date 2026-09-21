@@ -104,7 +104,9 @@ class SpeechStreamTests(SimpleTestCase):
 
 
 @override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'],
-                   MUXLISA_API_KEY='test-private-key')
+                   MUXLISA_API_KEY='test-private-key',
+                   STORAGES={'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+                             'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'}})
 class RealtimeTests(TestCase):
     def setUp(self):
         cache.clear()

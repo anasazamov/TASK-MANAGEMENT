@@ -23,6 +23,7 @@ if not SECRET_KEY:
 ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,[::1]').split(',')
 CSRF_TRUSTED_ORIGINS = [x.strip() for x in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',') if x.strip()]
 CSRF_TRUST_ALL_ORIGINS = CSRF_TRUSTED_ORIGINS == ['*']
+CSRF_FAILURE_VIEW = 'config.csrf.failure'
 if CSRF_TRUST_ALL_ORIGINS:
     CSRF_TRUSTED_ORIGINS = []
 INSTALLED_APPS = [

@@ -18,3 +18,5 @@
 .generated-actions{display:flex;align-items:center;gap:12px}.generated-frame{padding:0}.generated-frame iframe{display:block;width:100%;min-height:70vh;border:0;background:var(--surface)}
 .part-list{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}.part-row{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-soft)}.part-row.submitted{border-color:var(--amber)}.part-row.accepted{border-color:var(--green)}.part-info{flex:1;min-width:0}.part-info p{margin:2px 0 4px}.part-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 @media(max-width:700px){.part-row{flex-wrap:wrap}.part-actions{width:100%}}
+.sidebar{overflow:hidden}.sidebar nav{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:4px}.sidebar-bottom{flex:0 0 auto;padding-top:16px}
+@media(max-height:780px){.sidebar{padding-top:18px}.brand-caption{display:none}.user-card{padding-top:12px}.nav-caption{margin-top:10px}}

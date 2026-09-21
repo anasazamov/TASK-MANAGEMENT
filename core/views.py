@@ -101,7 +101,6 @@ def dashboard(request):
 
 def task_list_context(user, params):
     queryset = tasks_for(user)
-    task_counts = counts(queryset)
     active_filter = params.get('filter', 'active')
     if active_filter not in ['active', 'all', 'overdue', 'submitted', 'soon', 'undated', 'accepted', 'attention']:
         active_filter = 'active'
@@ -111,6 +110,9 @@ def task_list_context(user, params):
     employee = params.get('employee', '')
     if employee.isdigit():
         queryset = queryset.filter(assignee_id=employee)
+    # Tab counts describe the list in front of the user: the chosen employee and
+    # search, every status. Only the status tab itself is left out of them.
+    task_counts = counts(queryset)
     # Escalations are computed before search so a parent's warning survives filtering.
     task_map = {t.pk: t for t in with_escalations(tasks_for(user))}
     tasks = [task_map[t.pk] for t in queryset]
@@ -248,14 +250,19 @@ def task_create(request):
             raise Http404
         parent = get_object_or_404(tasks_for(request.user), pk=request.GET['parent'])
         require(can_delegate(request.user, parent))
-    form = TaskForm(request.POST or None, user=request.user, parent=parent)
+    form = TaskForm(request.POST or None, request.FILES or None, user=request.user, parent=parent)
     if request.method == 'POST' and form.is_valid():
+        fields = ['title', 'description', 'assignee', 'due_at', 'letter_number', 'letter_date', 'letter_sender']
         try:
-            task = create_task(request.user, {k: form.cleaned_data[k] for k in
-                ['title', 'description', 'assignee', 'due_at', 'letter_number', 'letter_date', 'letter_sender']}, parent)
+            task = create_task(request.user, {k: form.cleaned_data[k] for k in fields if k in form.cleaned_data}, parent)
         except ValidationError as error:
             form.add_error(None, error)
         else:
+            for upload in form.cleaned_data['files']:
+                try:
+                    add_task_attachment(request.user, task.pk, upload)
+                except ValidationError as error:
+                    messages.error(request, f'{upload.name}: ' + ' '.join(error.messages))
             messages.success(request, 'Topshiriq yaratildi va ijrochiga xabar yuborildi.')
             return redirect(task)
     return render(request, 'core/task_form.html', {'page_title': 'Topshiriqni taqsimlash' if parent else 'Yangi topshiriq',

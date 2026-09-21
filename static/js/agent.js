@@ -201,6 +201,9 @@
     }
     if (fields.due_at) fields.due_at.value = draft.due_at || '';
     fields.title.focus({preventScroll: true});
+    // The agent wrote these itself, so they are not the user's unsaved work and
+    // must not block the next page it opens. Later edits count as unsaved again.
+    snapshotForms();
     return true;
   }
   async function navigate(result, epoch = turnEpoch) {

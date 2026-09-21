@@ -101,6 +101,10 @@ def extreme(rows, highest):
 def render(name, data, focus='overview'):
     if name == 'create_tool':
         return data['message']
+    if name == 'list_pages':
+        if not data['pages']:
+            return 'Hozircha saqlangan sahifa yo‘q. Kerakli ma’lumotni ayting, sahifa tayyorlab beraman.'
+        return 'Saqlangan sahifalar:\n'+lines([f"{p['title']} (#{p['id']}, {p['updated_at']})" for p in data['pages']])
     if name.startswith('dyn_'):
         result = data['data']
         if 'rows' not in result:
@@ -134,7 +138,10 @@ def render(name, data, focus='overview'):
     if name == 'get_task':
         title = data['code']+' — '+data['title']+'.'
         if focus == 'assignee':
-            return title+' Ijrochi: '+data['assignee']+'. Topshiriq bergan: '+data['issuer']+'.'
+            text = title+' Ijrochi: '+data['assignee']+'. Topshiriq bergan: '+data['issuer']+'.'
+            if data.get('participants'):
+                text += ' Qo‘shimcha ijrochilar:\n'+lines([f"{p['name']} — {p['part']} ({p['status']})" for p in data['participants']])
+            return text
         if focus == 'deadline':
             return title+' Muddat: '+date(data['due_at'])+' (Toshkent vaqti).'
         if focus == 'status':

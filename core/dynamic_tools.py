@@ -266,7 +266,11 @@ def operation(user,name,args,references):
 def run(user,conversation,name,raw,references,read_only=False):
     definitions=registry(user,conversation)
     if name not in definitions:raise ValidationError('Bu suhbatda bunday vosita mavjud emas.')
-    definition=parse_definition(definitions[name])
+    return run_definition(user,conversation,definitions[name],raw,references,read_only)
+
+
+def run_definition(user,conversation,stored,raw,references,read_only=False):
+    definition=parse_definition(stored);name=definition.name
     if read_only and any(s.operation in WRITES for s in definition.steps):raise ValidationError('Ko‘rish so‘rovida o‘zgartirish bajarilmaydi.')
     if not isinstance(raw,dict) or set(raw)!={p.name for p in definition.parameters}:raise ValidationError('Vosita parametrlari noto‘g‘ri.')
     types={'string':(str,),'integer':(int,),'number':(int,float),'boolean':(bool,)}

@@ -187,7 +187,7 @@
     finally { clearTimeout(timeout); if (speechController === controller) speechController = undefined; }
   }
   function safeNavigation(value) {
-    if (!value || typeof value.url !== 'string' || !/^\/(?:tasks\/(?:new\/|\d+\/)?|employees\/(?:new\/|\d+\/(?:edit|password)\/)?|account\/password\/|structure\/|chains\/|timeline\/|notifications\/)?(?:\?[^#]*)?$/.test(value.url)) return null;
+    if (!value || typeof value.url !== 'string' || !/^\/(?:tasks\/(?:new\/|\d+\/)?|employees\/(?:new\/|\d+\/(?:edit|password)\/)?|pages\/(?:\d+\/)?|account\/password\/|structure\/|chains\/|timeline\/|notifications\/)?(?:\?[^#]*)?$/.test(value.url)) return null;
     const url = new URL(value.url, location.origin);
     return url.origin === location.origin ? url : null;
   }

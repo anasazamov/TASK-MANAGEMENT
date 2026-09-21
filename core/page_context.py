@@ -7,7 +7,8 @@ from django.urls import resolve, Resolver404
 
 
 READ_PAGES = {'dashboard', 'tasks', 'task_detail', 'task_create', 'employees',
-              'structure', 'chains', 'timeline', 'notifications', 'employee_create', 'employee_edit'}
+              'structure', 'chains', 'timeline', 'notifications', 'employee_create', 'employee_edit',
+              'generated_pages', 'generated_page'}
 VOID = {'input', 'img', 'br', 'hr', 'meta', 'link', 'source', 'wbr', 'area', 'base', 'embed', 'param', 'col', 'track'}
 
 

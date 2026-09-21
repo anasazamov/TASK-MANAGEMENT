@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="uz"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ title }}</title>
+<style>
+:root{color-scheme:light dark;--ink:#242a33;--muted:#75808f;--line:#e7eaf0;--bg:#fff;--soft:#f8f9fb;--navy:#223858;--red:#b64550}
+@media(prefers-color-scheme:dark){:root{--ink:#e9edf3;--muted:#a2adbc;--line:#2b3645;--bg:#19222f;--soft:#1e2a38;--navy:#90b1df;--red:#ed8d97}}
+*{box-sizing:border-box}
+body{margin:0;padding:20px;background:var(--bg);color:var(--ink);font:13px/1.65 'Segoe UI',system-ui,-apple-system,sans-serif}
+h1{font-size:19px;margin:0 0 6px}h2{font-size:15px;margin:22px 0 8px}h3{font-size:13px;margin:18px 0 6px}
+p{margin:0 0 10px}ul,ol{margin:0 0 12px;padding-left:20px}
+.page-table{width:100%;border-collapse:collapse;font-size:12px;margin:12px 0}
+.page-table th,.page-table td{border-bottom:1px solid var(--line);padding:9px 12px;text-align:left}
+.page-table th{background:var(--soft);color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}
+.page-table caption{caption-side:bottom;color:var(--muted);font-size:10.5px;text-align:left;padding-top:8px}
+.page-table tr:last-child td{border-bottom:0}
+.page-chart{width:100%;max-width:620px;height:auto;margin:12px 0}
+.page-chart rect{fill:var(--navy)}
+.page-chart text{fill:var(--ink);font-size:12px}
+.page-chart .page-chart-value{fill:var(--muted)}
+.page-empty{color:var(--muted)}
+</style></head>
+<body>{{ body|safe }}</body></html>

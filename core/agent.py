@@ -9,7 +9,7 @@ from django.utils import timezone
 from openai import APIStatusError
 from pydantic import ValidationError as SchemaError
 
-from . import agent_tools as domain, agent_replies, voice, navigation_intent, dynamic_tools
+from . import agent_tools as domain, agent_replies, voice, navigation_intent, dynamic_tools, pages
 from .models import AgentProposal
 from .person_search import find_people, words
 from .voice_errors import VoiceError
@@ -285,8 +285,8 @@ def respond(user, conversation, command, path, references):
     with voice.provider() as client:
         for _ in range(8):
             response = model_response(client, expires,
-                **voice.model_options(), instructions=INSTRUCTIONS + '\n' + dynamic_tools.INSTRUCTIONS + '\nContext: ' + json.dumps(context, ensure_ascii=False),
-                input=inputs, tools=tools+agent_replies.schemas()+[dynamic_tools.create_schema()]+dynamic_tools.schemas(user, conversation, read_only), parallel_tool_calls=False, tool_choice='required',
+                **voice.model_options(), instructions=INSTRUCTIONS + '\n' + dynamic_tools.INSTRUCTIONS + '\n' + pages.INSTRUCTIONS + '\nContext: ' + json.dumps(context, ensure_ascii=False),
+                input=inputs, tools=tools+agent_replies.schemas()+[dynamic_tools.create_schema()]+pages.schemas()+dynamic_tools.schemas(user, conversation, read_only), parallel_tool_calls=False, tool_choice='required',
                 max_output_tokens=6000, store=False)
             if response.status != 'completed':
                 raise VoiceError('incomplete', 'Agent javobi tugallanmagan. Buyruqni qisqaroq ayting.', 502)
@@ -321,7 +321,11 @@ def respond(user, conversation, command, path, references):
                             matches_person = domain.get_task(user, args.task_id).assignee_id == selected_person
                         if not matches_person:
                             return {'message': agent_replies.QUESTIONS['person'], 'mode': 'grounded'}
-                if call.name == 'create_tool':
+                if call.name == 'open_page' and not may_navigate:
+                    return {'message': agent_replies.QUESTIONS['intent'], 'mode': 'grounded'}
+                if call.name in pages.TOOLS:
+                    result = pages.execute(user, conversation, call.name, json.loads(call.arguments), read_only)
+                elif call.name == 'create_tool':
                     result = dynamic_tools.create(user, conversation, json.loads(call.arguments), read_only)
                 elif call.name.startswith('dyn_'):
                     result = dynamic_tools.run(user, conversation, call.name, json.loads(call.arguments), references, read_only)
@@ -332,7 +336,7 @@ def respond(user, conversation, command, path, references):
             except (ValidationError, PermissionDenied) as error:
                 result = {'error': '; '.join(error.messages) if isinstance(error, ValidationError) else 'Bu amal uchun huquqingiz yo‘q.'}
             if 'error' in result:
-                if call.name == 'create_tool' or call.name.startswith('dyn_'):
+                if call.name == 'create_tool' or call.name.startswith('dyn_') or call.name in pages.TOOLS:
                     inputs.append({'type': 'function_call_output', 'call_id': call.call_id,
                         'output': json.dumps(result, ensure_ascii=False)})
                     continue

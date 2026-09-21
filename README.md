@@ -37,6 +37,17 @@ Server `certs/` papkasida shu kompyuter IP manzillari uchun o‘z-o‘zidan imzo
 
 `seed_demo` bo‘sh development bazaga 25 xodim, 14 bo‘linma (rahbariyat bilan), 21 topshiriq, tarix va xabarnomalar qo‘shadi. Sana va vaqtlar ishga tushirilgan vaqtga nisbatan hisoblanadi. Uchta test login — `rais`, `boshliq`, `xodim`; tasodifiy parol terminalda ko‘rsatiladi. Boshqa namuna xodimlarining paroli mavjud emas; rais struktura orqali ularni belgilashi mumkin. Qayta ishga tushirish mavjud yozuvlar yoki parollarni o‘zgartirmaydi. Namuna F.I.Sh.larining ayrimlari dizayndagi initsiallar asosida tuzilgan, tashkilotning tasdiqlangan xodimlar reyestri emas.
 
+**Production uchun xodimlar ro‘yxati.** Haqiqiy bazaga tashkilot xodimlarini qo‘shish uchun `seed_demo` emas, `seed_staff` ishlatiladi: u bo‘linmalar va 26 ta xodim hisobini yaratadi, topshiriq va namuna ma’lumot qo‘shmaydi.
+
+```powershell
+.\.venv\Scripts\python.exe manage.py seed_staff --dry-run   # avval ko‘rib chiqish
+.\.venv\Scripts\python.exe manage.py seed_staff
+```
+
+Login — familiya (masalan `xalimov`). Mavjud loginlar o‘zgartirilmaydi, shuning uchun ro‘yxat yangilangach buyruqni qayta ishga tushirish xavfsiz. Xo‘jalik ishlari bo‘limi xodimlari ro‘yxatga kiritilmagan; Devonxona mudiri `office`, kotib referent `secretary` roli bilan qo‘shiladi.
+
+Barcha hisoblarga boshlang‘ich parol **`12345678`** qo‘yiladi va buyruq bu haqda ogohlantiradi: parol bir xil va oson topiladi. Xodimlar birinchi kirishdan so‘ng «Parolni o‘zgartirish» orqali uni almashtirsin — tizim buni majburan talab qilmaydi. Boshqa parol: `--password <parol>`. Umuman parolsiz (rais Struktura sahifasida o‘zi belgilaydi): `--no-password`.
+
 Admin kerak bo‘lsa: `python manage.py createsuperuser`. Oddiy rais hisobi Django admin huquqiga ega emas. Production uchun namuna bazani ishlatmang: yangi baza va haqiqiy foydalanuvchilar yarating. Rais rolini superuser `/admin/` orqali belgilaydi.
 
 ## Ishlaydigan funksiyalar

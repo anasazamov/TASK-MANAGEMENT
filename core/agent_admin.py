@@ -7,10 +7,10 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.urls import reverse
 from django.utils import timezone
-from .models import AgentProposal, Department, Event, Task, User
+from .models import AgentProposal, Department, Event, Task, TaskParticipant, User
 from .forms import DepartmentForm, EmployeeForm, EmployeeEditForm
 from .permissions import assignees_for, can_manage
-from .services import require, log, notify
+from .services import add_participant, log, notify, part_action, require
 
 
 def validate(form):
@@ -52,6 +52,10 @@ def version(user, name, args):
         data = list(Department.objects.filter(pk=args.department_id).values('id','name','head_id'))
     elif name == 'prepare_task_edit':
         data = list(Task.objects.visible_to(user).filter(pk=args.task_id).values('id','updated_at','title','description','assignee_id','status'))
+    elif name == 'prepare_participant':
+        data = list(TaskParticipant.objects.filter(task_id=args.task_id).values('id','user_id','kind','status'))
+    elif name == 'prepare_part_action':
+        data = list(TaskParticipant.objects.filter(pk=args.participant_id).values('id','task_id','user_id','kind','status'))
     else:
         data = list(user.notifications.filter(read_at__isnull=True, task__in=Task.objects.visible_to(user)).values_list('pk',flat=True))
     return hashlib.sha256(json.dumps(data,default=str,sort_keys=True).encode()).hexdigest()
@@ -115,6 +119,24 @@ def apply(user, name, args):
         log(task,user,Event.Kind.COMMENT,'Topshiriq tahrirlandi: '+before+' → '+task.title+'; '+task.assignee.full_name)
         notify(task,[old_assignee,task.assignee], 'Topshiriq ma’lumotlari o‘zgartirildi')
         return {'Amal':'Topshiriqni tahrirlash','Oldingi holat':before,'Mazmun':task.title,'Talablar':task.description,'Ijrochi':task.assignee.full_name}, {'message':task.code+' — o‘zgarishlar saqlandi.','task_id':task.pk,'navigation':{'url':task.get_absolute_url(),'label':task.code}}
+    if name == 'prepare_participant':
+        participant = add_participant(user, args.task_id, args.person_id, args.part, args.kind)
+        label = participant.get_kind_display()
+        return ({'Amal':label+' qo‘shish','Topshiriq':participant.task.code+' — '+participant.task.title,
+                 'Xodim':participant.user.full_name,'Ijro qismi':participant.part or 'Umumiy nazorat'},
+                {'message':f'{participant.user.full_name} — {label.lower()} qilib qo‘shildi.','task_id':participant.task_id,
+                 'navigation':{'url':participant.task.get_absolute_url(),'label':participant.task.code}})
+    if name == 'prepare_part_action':
+        participant = TaskParticipant.objects.select_related('task','user').get(pk=args.participant_id)
+        before = participant.get_status_display()
+        part_action(user, args.participant_id, args.action, args.text)
+        labels = {'submit_part':'Qismni topshirish','accept_part':'Qismni qabul qilish',
+                  'return_part':'Qismni qaytarish','remove':'Ishtirokchini olib tashlash'}
+        return ({'Amal':labels[args.action],'Topshiriq':participant.task.code+' — '+participant.task.title,
+                 'Xodim':participant.user.full_name,'Ijro qismi':participant.part or 'Umumiy nazorat',
+                 'Oldingi holat':before,'Matn':args.text},
+                {'message':labels[args.action]+' bajarildi. '+participant.task.code,'task_id':participant.task_id,
+                 'navigation':{'url':participant.task.get_absolute_url(),'label':participant.task.code}})
     items=user.notifications.filter(read_at__isnull=True,task__in=Task.objects.visible_to(user))
     count=items.update(read_at=timezone.now())
     return {'Amal':'Xabarnomalarni o‘qilgan deb belgilash','Soni':str(count)}, {'message':f'{count} ta xabarnoma o‘qilgan deb belgilandi.','navigation':{'url':reverse('notifications'),'label':'Xabarnomalar'}}
@@ -140,6 +162,10 @@ def confirm(user, proposal, name, args):
         Department.objects.select_for_update().filter(pk=args.department_id).first()
     elif name == 'prepare_task_edit':
         Task.objects.select_for_update().filter(pk=args.task_id).first()
+    elif name == 'prepare_participant':
+        Task.objects.select_for_update().filter(pk=args.task_id).first()
+    elif name == 'prepare_part_action':
+        TaskParticipant.objects.select_for_update().filter(pk=args.participant_id).first()
     if version(user,name,args) != proposal.snapshot:
         raise ValidationError('Ma’lumot o‘zgargan. O‘zgarishni yangidan tayyorlang.')
     _,result=apply(user,name,args)

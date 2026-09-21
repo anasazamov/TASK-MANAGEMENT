@@ -62,11 +62,11 @@ class User(AbstractUser):
 
     @property
     def can_assign(self):
-        return self.role in [self.Role.CHAIR, self.Role.HEAD, self.Role.OFFICE]
+        return self.role in [self.Role.CHAIR, self.Role.HEAD, self.Role.OFFICE, self.Role.SECRETARY]
 
     @property
     def can_oversee(self):
-        """Sees every task and the employee statistics, but decides nothing."""
+        """Sees every task and the employee statistics across all departments."""
         return self.role in [self.Role.CHAIR, self.Role.SECRETARY]
 
     def __str__(self):

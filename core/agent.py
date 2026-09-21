@@ -90,7 +90,21 @@ Use assignee_id=null when no employee filter exists or the user explicitly asks 
 all employees. 'Menga ko'rsat' means show me, NOT filter by my user_id. Only 'mening
 topshiriqlarim' or 'menga berilgan' means my assigned tasks.
 Never guess IDs (including 0): use current context IDs or resolve with list_people.
+On the new-task page (context.current_page.route == 'task_create') the user may ask
+you to write or correct the open form: 'mazmunini yozib ber', 'ijrochini qo‘y',
+'muddatni ertaga qil'. Use fill_task_form with their own instruction; the server
+writes the fields into the page. It does not create the task: the user still presses
+the save button. Use prepare_task only when the user wants the task itself created.
 Use prepare_task for assignment/delegation and prepare_action for task workflow.
+For an incoming letter also fill letter_number, letter_date (YYYY-MM-DD) and
+letter_sender in prepare_task; leave them null when the user mentions no letter.
+prepare_participant attaches another employee to an existing task: kind=executor
+with the part they must do, kind=controller to follow it ('nazoratchi tayinla').
+prepare_part_action submits, accepts, returns or removes one attached participant;
+take participant_id from get_task, never guess it. get_task also lists attached
+files and the letter; files are uploaded on the task page, not through you.
+open_report opens the employee statistics, a chosen ISO week, or downloads the
+Excel file ('haftalik hisobotni yuklab ber').
 Read get_task before preparing an action. Do only what the user requested. Never
 mark a task finished merely because the user asks to view it. Never claim an
 action was saved or sent: prepare tools only create a preview for confirmation.
@@ -191,6 +205,26 @@ def shortcut(user, command):
     return result
 
 
+FORM_TOOL = {'type': 'function', 'name': 'fill_task_form', 'strict': True,
+    'description': 'Write the open new-task form on this page from the user instruction. Fills content, assignee and deadline; it never saves the task.',
+    'parameters': {'type': 'object', 'additionalProperties': False, 'required': ['instruction'],
+                   'properties': {'instruction': {'type': 'string',
+                       'description': 'The user request in their own words, e.g. "Xalimovga hisobot tayyorlash, ertaga 18:00".'}}}}
+
+
+def fill_task_form(user, context, raw):
+    """Reuse the task-draft model the form's own microphone uses; the user still saves."""
+    page = context.get('current_page') or {}
+    if page.get('route') != 'task_create':
+        return {'error': 'Bu sahifada topshiriq formasi ochilmagan. Avval «Yangi topshiriq» sahifasini oching.'}
+    instruction = raw.get('instruction')
+    if not isinstance(instruction, str) or not instruction.strip():
+        return {'error': 'Topshiriq mazmunini ayting: kim, nima va qachongacha bajarsin.'}
+    parent = domain.get_task(user, context['delegation_parent_id']) if context.get('delegation_parent_id') else None
+    result = voice.draft_task(user, instruction.strip()[:6000], {}, parent)
+    return {'form': result['draft'], 'message': result['message']}
+
+
 def current_context(user, path):
     from . import page_context
     context = {'current_time': timezone.localtime().isoformat(), 'timezone': 'Asia/Tashkent',
@@ -286,7 +320,9 @@ def respond(user, conversation, command, path, references):
         for _ in range(8):
             response = model_response(client, expires,
                 **voice.model_options(), instructions=INSTRUCTIONS + '\n' + dynamic_tools.INSTRUCTIONS + '\n' + pages.INSTRUCTIONS + '\nContext: ' + json.dumps(context, ensure_ascii=False),
-                input=inputs, tools=tools+agent_replies.schemas()+[dynamic_tools.create_schema()]+pages.schemas()+dynamic_tools.schemas(user, conversation, read_only), parallel_tool_calls=False, tool_choice='required',
+                input=inputs, tools=tools+agent_replies.schemas()+[dynamic_tools.create_schema()]+pages.schemas()
+                    +([FORM_TOOL] if (context.get('current_page') or {}).get('route') == 'task_create' else [])
+                    +dynamic_tools.schemas(user, conversation, read_only), parallel_tool_calls=False, tool_choice='required',
                 max_output_tokens=6000, store=False)
             if response.status != 'completed':
                 raise VoiceError('incomplete', 'Agent javobi tugallanmagan. Buyruqni qisqaroq ayting.', 502)
@@ -323,7 +359,9 @@ def respond(user, conversation, command, path, references):
                             return {'message': agent_replies.QUESTIONS['person'], 'mode': 'grounded'}
                 if call.name == 'open_page' and not may_navigate:
                     return {'message': agent_replies.QUESTIONS['intent'], 'mode': 'grounded'}
-                if call.name in pages.TOOLS:
+                if call.name == 'fill_task_form':
+                    result = fill_task_form(user, context, json.loads(call.arguments))
+                elif call.name in pages.TOOLS:
                     result = pages.execute(user, conversation, call.name, json.loads(call.arguments), read_only)
                 elif call.name == 'create_tool':
                     result = dynamic_tools.create(user, conversation, json.loads(call.arguments), read_only)
@@ -336,12 +374,12 @@ def respond(user, conversation, command, path, references):
             except (ValidationError, PermissionDenied) as error:
                 result = {'error': '; '.join(error.messages) if isinstance(error, ValidationError) else 'Bu amal uchun huquqingiz yo‘q.'}
             if 'error' in result:
-                if call.name == 'create_tool' or call.name.startswith('dyn_') or call.name in pages.TOOLS:
+                if call.name in ('create_tool', 'fill_task_form') or call.name.startswith('dyn_') or call.name in pages.TOOLS:
                     inputs.append({'type': 'function_call_output', 'call_id': call.call_id,
                         'output': json.dumps(result, ensure_ascii=False)})
                     continue
                 return {'message': result['error'], 'mode': 'grounded'}
-            if 'navigation' in result or 'proposal' in result:
+            if 'navigation' in result or 'proposal' in result or 'form' in result:
                 return {**result, 'mode': 'ai'}
             if call.name == 'list_people' and (result['needs_clarification'] or not result['people']):
                 return {'message': agent_replies.render(call.name, result), 'mode': 'grounded',

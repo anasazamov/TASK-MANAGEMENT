@@ -4,7 +4,8 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from .models import Department, Event, Notification, Task, TaskParticipant, User
+from . import agent_tools as tools
+from .models import AgentConversation, Department, Event, Notification, Task, TaskParticipant, User
 from .services import add_participant, create_task, part_action, task_action
 
 
@@ -153,6 +154,26 @@ class ParticipantTests(TestCase):
         self.client.force_login(self.head)
         self.client.post(f'/tasks/{self.task.pk}/participants/{watcher.pk}/', {'action': 'remove'})
         self.assertFalse(TaskParticipant.objects.exists())
+
+    def test_agent_attaches_and_decides_participants_after_confirmation(self):
+        conversation = AgentConversation.objects.create(user=self.head)
+        add = tools.Participant(task_id=self.task.pk, person_id=self.helper.pk, kind='executor', part='Smeta hisob-kitobi')
+        preview = tools.prepare(self.head, conversation, 'prepare_participant', add)
+        self.assertEqual(preview['proposal']['preview']['Ijro qismi'], 'Smeta hisob-kitobi')
+        self.assertFalse(TaskParticipant.objects.exists())  # Nothing is attached until confirmed.
+        tools.confirm(self.head, conversation, preview['proposal']['id'])
+        participant = TaskParticipant.objects.get()
+        self.assertEqual((participant.user, participant.kind), (self.helper, 'executor'))
+        read = tools.execute(self.head, conversation, 'get_task', {'task_id': self.task.pk}, set())
+        self.assertEqual(read['participants'][0]['id'], participant.pk)
+        part_action(self.helper, participant.pk, 'submit_part', 'Tayyor')
+        decide = tools.PartAction(participant_id=participant.pk, action='accept_part', text='')
+        result = tools.confirm(self.head, conversation, tools.prepare(self.head, conversation, 'prepare_part_action', decide)['proposal']['id'])
+        participant.refresh_from_db()
+        self.assertEqual(participant.status, 'accepted')
+        self.assertEqual(result['task_id'], self.task.pk)
+        with self.assertRaises(PermissionDenied):
+            tools.prepare(self.employee, AgentConversation.objects.create(user=self.employee), 'prepare_participant', add)
 
     def test_agent_reads_participants_from_the_task(self):
         from . import agent_replies, agent_tools

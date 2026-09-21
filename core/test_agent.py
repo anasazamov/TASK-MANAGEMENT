@@ -66,7 +66,8 @@ class AgentTestBase(TestCase):
 
     def new_args(self, **extra):
         return dict(title='Loyiha pasporti', description='Rejani tayyorlash', assignee_id=self.employee.pk,
-                    due_at=timezone.localtime(timezone.now()+timedelta(days=1)).isoformat(), no_deadline=False, parent_id=None, **extra)
+                    due_at=timezone.localtime(timezone.now()+timedelta(days=1)).isoformat(), no_deadline=False,
+                    parent_id=None, letter_number=None, letter_date=None, letter_sender=None, **extra)
 
     def action(self, action='request_report', **extra):
         return tools.ChangeTask(**{'task_id': self.task.pk, 'action': action, 'text': '', 'due_at': None, 'no_deadline': False, **extra})
@@ -565,6 +566,28 @@ class AgentTests(AgentTestBase):
             data = self.message("O'zing so'rayver yaxshimikan").json()
         self.assertNotIn('navigation', data)
         self.assertIn('aniq tushunmadim', data['message'])
+
+    def test_agent_writes_the_open_task_form_without_creating_the_task(self):
+        draft = {'draft': {'title': 'Chorak yakuni hisoboti', 'description': 'Rejani yozing',
+                           'assignee_id': self.employee.pk, 'due_at': '2026-09-25T18:00', 'deadline_kind': 'specified'},
+                 'message': 'Maydonlar tayyor.'}
+        call = self.call('fill_task_form', instruction='Xalimovga hisobot tayyorlash, ertaga 18:00')
+        with self.model(call), patch('core.agent.voice.draft_task', return_value=draft) as drafting:
+            data = self.message('Topshiriq mazmuniga nima qilish kerak deb yozib ber', path='/tasks/new/').json()
+        self.assertEqual(data['form']['title'], 'Chorak yakuni hisoboti')
+        self.assertEqual(data['form']['assignee_id'], self.employee.pk)
+        self.assertEqual(drafting.call_args.args[1], 'Xalimovga hisobot tayyorlash, ertaga 18:00')
+        self.assertEqual(Task.objects.filter(title='Chorak yakuni hisoboti').count(), 0)
+        self.assertIn('fill_task_form', [tool['name'] for tool in json.loads(self.requests[0].content)['tools']])
+
+    def test_form_tool_is_absent_and_refused_outside_the_task_form(self):
+        with self.model(self.call('fill_task_form', instruction='Yozib ber'), self.call('ask_clarification', kind='intent')):
+            data = self.message('Mazmunini yozib ber', path='/tasks/').json()
+        self.assertNotIn('form', data)
+        self.assertIn('aniq tushunmadim', data['message'])
+        self.assertNotIn('fill_task_form', [tool['name'] for tool in json.loads(self.requests[0].content)['tools']])
+        outputs = [item for item in json.loads(self.requests[-1].content)['input'] if item.get('type') == 'function_call_output']
+        self.assertIn('error', json.loads(outputs[-1]['output']))
 
     def test_verified_name_choice_preserves_requested_navigation_and_binds_employee(self):
         User.objects.create_user('second', full_name='Raximov Farrux', department=self.head.department)

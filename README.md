@@ -56,7 +56,7 @@ Admin kerak bo‘lsa: `python manage.py createsuperuser`. Oddiy rais hisobi Djan
 - Rais: tashkilot bo‘yicha ko‘rish, topshiriq berish, qarorlar, bo‘linma/xodim boshqaruvi.
 - Bo‘lim boshlig‘i: o‘z bo‘linmasidagi topshiriqlar, o‘z xodimlariga topshiriq berish, o‘ziga berilgan vazifani taqsimlash.
 - Devonxona mudiri: kelgan xat bo‘yicha **faqat bo‘lim boshliqlariga** topshiriq beradi va o‘zi bergan topshiriqlar ijrosini kuzatadi. Boshqa bo‘limlarning ichki topshiriqlarini ko‘rmaydi.
-- Kotiba: butun tashkilot bo‘yicha topshiriqlar va «Xodimlar» statistikasini **ko‘radi**, lekin topshiriq bermaydi va qaror qabul qilmaydi. Nazoratchi qilib belgilansa, izoh yozadi va hisobot so‘raydi.
+- Kotiba: butun tashkilot bo‘yicha topshiriqlar va «Xodimlar» statistikasini ko‘radi hamda **barcha bo‘linmalarga topshiriq beradi** (rais topshiriqlarini rasmiylashtiradi). O‘zi bergan topshiriq bo‘yicha rahbar hisoblanadi: ijroni qabul qiladi, muddat belgilaydi. Boshqa rahbarlar bergan topshiriqlar bo‘yicha qaror qabul qilmaydi; nazoratchi qilib belgilansa, izoh yozadi va hisobot so‘raydi. Xodim va bo‘linma boshqaruvi faqat raisda qoladi.
 - Xodim: faqat o‘z topshiriqlari, izoh, ijro, haftalik hisobot, muddat uzaytirish so‘rovi.
 - Xat rekvizitlari: topshiriqqa xat raqami, sanasi va kimdan kelgani yoziladi; ular topshiriq sahifasida ko‘rinadi.
 - Fayl biriktirish: topshiriqqa 25 MB gacha hujjat (PDF, Word, Excel, rasm, arxiv) biriktiriladi, bittasiga 20 tagacha. Fayllar bazada emas, S3/MinIO’da saqlanadi (`S3_ENDPOINT_URL` sozlansa); havolalar imzolangan va 15 daqiqa amal qiladi. Sozlanmagan bo‘lsa, fayllar serverdagi `media/` papkasida turadi. Faylni topshiriq ishtirokchilari biriktiradi, o‘chirishni esa yuklagan shaxs yoki rahbar bajaradi.

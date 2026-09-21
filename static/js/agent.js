@@ -189,6 +189,20 @@
     const url = new URL(value.url, location.origin);
     return url.origin === location.origin ? url : null;
   }
+  function applyForm(draft) {
+    // The server wrote these fields; the user still reviews them and presses save.
+    const fields = {title: document.getElementById('id_title'), description: document.getElementById('id_description'),
+      assignee: document.getElementById('id_assignee'), due_at: document.getElementById('id_due_at')};
+    if (!fields.title || !fields.assignee) return false;
+    fields.title.value = draft.title || '';
+    fields.description.value = draft.description || '';
+    if (draft.assignee_id && fields.assignee.querySelector(`option[value="${draft.assignee_id}"]`)) {
+      fields.assignee.value = String(draft.assignee_id);
+    }
+    if (fields.due_at) fields.due_at.value = draft.due_at || '';
+    fields.title.focus({preventScroll: true});
+    return true;
+  }
   async function navigate(result, epoch = turnEpoch) {
     const url = safeNavigation(result.navigation);
     if (!url) return false;
@@ -240,7 +254,12 @@
       renderMessages(result.messages); renderProposal(result.proposal);
       input.value = ''; replyToken = result.reply_token;
       $('[data-agent-listen]').hidden = !config.tts || !replyToken;
-      show(result.mode === 'shortcut' && !config.llm ? 'Sahifa ochish buyrug‘i bajarildi. Murakkab suhbat uchun OpenAI sozlanishi kerak.' : 'Tayyor. Yana nima qilish kerak?');
+      const filled = result.form ? applyForm(result.form) : false;
+      show(result.mode === 'shortcut' && !config.llm ? 'Sahifa ochish buyrug‘i bajarildi. Murakkab suhbat uchun OpenAI sozlanishi kerak.'
+        : filled ? 'Forma to‘ldirildi. Tekshirib, «Topshiriqni yuborish»ni bosing.'
+        : result.form ? 'Topshiriq formasi bu sahifada topilmadi. «Yangi topshiriq» sahifasini oching.'
+        : 'Tayyor. Yana nima qilish kerak?');
+      if (filled) compact(true);
       retryAction = undefined;
       if (epoch === turnEpoch) navigating = await navigate(result, epoch);
     } catch (error) {

@@ -56,18 +56,26 @@ class OfficeAndSecretaryTests(TestCase):
         self.client.force_login(self.office)
         self.assertEqual(self.client.get(self.task.get_absolute_url()).status_code, 404)
 
-    def test_secretary_oversees_everything_but_changes_nothing(self):
-        self.assertTrue(self.secretary.can_oversee)
-        self.assertFalse(self.secretary.can_assign)
+    def test_secretary_oversees_every_department_and_assigns_across_them(self):
+        self.assertTrue(self.secretary.can_oversee and self.secretary.can_assign)
         self.assertIn(self.task, Task.objects.visible_to(self.secretary))
+        self.assertEqual({p.pk for p in assignees_for(self.secretary)},
+                         {self.head.pk, self.other_head.pk, self.employee.pk, self.office.pk})
         self.client.force_login(self.secretary)
         self.assertEqual(self.client.get('/employees/').status_code, 200)
         page = self.client.get(self.task.get_absolute_url())
         self.assertContains(page, self.task.title)
-        self.assertNotContains(page, 'Qabul qilish')
-        self.assertEqual(self.client.get('/tasks/new/').status_code, 403)
+        self.assertNotContains(page, 'Qabul qilish')  # Another manager's task stays theirs to decide.
+        self.assertEqual(self.client.get('/tasks/new/').status_code, 200)
         self.assertEqual(self.client.get('/structure/').status_code, 403)
-        self.assertEqual(assignees_for(self.secretary).count(), 0)
+
+    def test_secretary_task_reaches_any_department_and_stays_under_her_control(self):
+        given = create_task(self.secretary, dict(title='Rais topshirig‘i', description='',
+                                                 assignee=self.employee, due_at=timezone.now()+timedelta(days=2)))
+        self.assertEqual(given.issuer, self.secretary)
+        self.assertIn(given, Task.objects.visible_to(self.employee))
+        self.client.force_login(self.secretary)
+        self.assertContains(self.client.get(given.get_absolute_url()), 'Haftalik hisobot so‘rash')
 
     def test_letter_details_are_stored_and_shown(self):
         self.client.force_login(self.office)
@@ -111,6 +119,36 @@ class OfficeAndSecretaryTests(TestCase):
         with self.assertRaises(PermissionDenied):
             add_attachment(self.other_head, self.task.pk, self.file())
         self.assertFalse(TaskAttachment.objects.exists())
+
+    def test_agent_opens_and_downloads_the_employee_report(self):
+        from . import agent_tools
+        from .models import AgentConversation
+        conversation = AgentConversation.objects.create(user=self.head)
+        opened = agent_tools.execute(self.head, conversation, 'open_report', {'week': None, 'download': False}, set())
+        self.assertEqual(opened['navigation']['url'], '/employees/')
+        weekly = agent_tools.execute(self.head, conversation, 'open_report', {'week': '2026-W38', 'download': True}, set())
+        self.assertEqual(weekly['navigation']['url'], '/employees/?week=2026-W38&format=xlsx')
+        self.assertIn('Excel', weekly['message'])
+        with self.assertRaises(ValidationError):
+            agent_tools.execute(self.head, conversation, 'open_report', {'week': '2026-W99', 'download': False}, set())
+        with self.assertRaises(PermissionDenied):
+            agent_tools.execute(self.employee, conversation, 'open_report', {'week': None, 'download': False}, set())
+
+    def test_agent_records_letter_details_on_a_new_task(self):
+        from . import agent_tools
+        from .models import AgentConversation
+        conversation = AgentConversation.objects.create(user=self.office)
+        args = agent_tools.NewTask(title='Xat bo‘yicha chora', description='', assignee_id=self.head.pk,
+                                   due_at=timezone.localtime(timezone.now()+timedelta(days=2)).isoformat(),
+                                   no_deadline=False, parent_id=None, letter_number='01-12/345',
+                                   letter_date='2026-09-15', letter_sender='Moliya vazirligi')
+        preview = agent_tools.prepare(self.office, conversation, 'prepare_task', args)
+        agent_tools.confirm(self.office, conversation, preview['proposal']['id'])
+        task = Task.objects.get(title='Xat bo‘yicha chora')
+        self.assertEqual((task.letter_number, str(task.letter_date), task.letter_sender),
+                         ('01-12/345', '2026-09-15', 'Moliya vazirligi'))
+        read = agent_tools.execute(self.office, conversation, 'get_task', {'task_id': task.pk}, set())
+        self.assertEqual(read['letter']['number'], '01-12/345')
 
     def test_controller_candidates_follow_the_manager_scope(self):
         self.assertEqual({p.pk for p in controllers_for(self.head)},

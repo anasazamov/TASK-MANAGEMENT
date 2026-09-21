@@ -19,7 +19,7 @@ from . import navigation_intent
 from .services import create_task, require, task_action
 
 Status = Literal['active', 'all', 'overdue', 'soon', 'submitted', 'accepted', 'undated']
-Page = Literal['dashboard', 'tasks', 'task_detail', 'task_create', 'employees', 'structure', 'chains', 'timeline', 'notifications']
+Page = Literal['dashboard', 'tasks', 'task_detail', 'task_create', 'employees', 'structure', 'chains', 'timeline', 'notifications', 'generated_pages']
 Action = Literal['comment', 'submit', 'accept', 'return', 'set_deadline', 'request_deadline', 'approve_deadline', 'reject_deadline', 'request_report', 'report']
 ID = Annotated[int, Field(ge=1, le=2147483647)]
 
@@ -58,6 +58,27 @@ class NewTask(Arguments):
     due_at: str | None
     no_deadline: bool
     parent_id: ID | None
+    letter_number: str | None = Field(max_length=60)
+    letter_date: str | None = Field(max_length=10)
+    letter_sender: str | None = Field(max_length=180)
+
+
+class Participant(Arguments):
+    task_id: ID
+    person_id: ID
+    kind: Literal['executor', 'controller']
+    part: str = Field(max_length=240)
+
+
+class PartAction(Arguments):
+    participant_id: ID
+    action: Literal['submit_part', 'accept_part', 'return_part', 'remove']
+    text: str = Field(max_length=6000)
+
+
+class Report(Arguments):
+    week: str | None = Field(max_length=8)
+    download: bool
 
 
 class ChangeTask(Arguments):
@@ -105,6 +126,9 @@ TOOLS = {
     'prepare_department': (DepartmentChange, 'Prepare creating a department (null ID) or renaming a real department. Chair only.'),
     'prepare_task_edit': (TaskEdit, 'Prepare task title, description or assignee changes. Null fields stay unchanged. Manager only; closed tasks cannot change. Use prepare_action for deadlines/status.'),
     'prepare_notifications_read': (Arguments, 'Prepare marking currently unread authorized notifications as read.'),
+    'prepare_participant': (Participant, 'Prepare attaching another employee to an existing task: kind=executor needs the part they are responsible for (3-240 chars); kind=controller only follows execution and part may be empty. Task manager only.'),
+    'prepare_part_action': (PartAction, 'Prepare a decision on one attached participant: submit_part (that participant only, with a short report), accept_part or return_part (manager, return needs a reason), remove (manager). participant_id comes from get_task.'),
+    'open_report': (Report, 'Open the employee statistics page, optionally for one ISO week like "2026-W38", or download it as Excel with download=true.'),
     'navigate_account': (AccountPage, 'Open own password change or chair-only employee create/edit/password form. Passwords must be entered on the secure form, never in voice/chat.'),
     'search_tasks': (Search, 'Search visible tasks by title/content, status and assignee. Returns real IDs and codes; paginate with page.'),
     'get_task': (TaskID, 'Read one visible task, history, children, deadline request and permitted actions. task_id is the database ID, not the T-code.'),
@@ -313,7 +337,7 @@ def navigate(user, args):
         url = reverse(args.page)
         labels = dict(dashboard='Boshqaruv paneli', tasks='Topshiriqlar', task_create='Yangi topshiriq',
                       employees='Xodimlar', structure='Struktura', chains='Nazorat zanjiri',
-                      timeline='Harakatlar tarixi', notifications='Xabarnomalar')
+                      timeline='Harakatlar tarixi', notifications='Xabarnomalar', generated_pages='Agent sahifalari')
         label = labels[args.page]
         if args.page == 'tasks':
             check_person(user, args.assignee_id)
@@ -362,10 +386,12 @@ def new_task_data(user, args):
         raise ValidationError('Sana va «muddatsiz» bir vaqtda berilmasligi kerak.')
     due = parse_due(args.due_at)
     form = TaskForm(dict(title=args.title, description=args.description, assignee=args.assignee_id,
-                         due_at=due.isoformat() if due else ''), user=user, parent=parent)
+                         due_at=due.isoformat() if due else '', letter_number=args.letter_number or '',
+                         letter_date=args.letter_date or '', letter_sender=args.letter_sender or ''), user=user, parent=parent)
     if not form.is_valid():
         raise ValidationError([str(error) for errors in form.errors.values() for error in errors])
-    return {k: form.cleaned_data[k] for k in ['title', 'description', 'assignee', 'due_at']}, parent
+    return {k: form.cleaned_data[k] for k in ['title', 'description', 'assignee', 'due_at',
+                                              'letter_number', 'letter_date', 'letter_sender']}, parent
 
 
 ACTION_LABELS = dict(comment='Izoh qo‘shish', submit='Ijroni topshirish', accept='Ijroni qabul qilish',
@@ -400,8 +426,12 @@ def proposal_data(proposal):
     return {'id': str(proposal.pk), 'preview': proposal.preview, 'expires_at': proposal.expires_at.isoformat()}
 
 
+ADMIN_TOOLS = ('prepare_employee', 'prepare_department', 'prepare_task_edit', 'prepare_notifications_read',
+               'prepare_participant', 'prepare_part_action')
+
+
 def prepare(user, conversation, name, args):
-    if name in ('prepare_employee', 'prepare_department', 'prepare_task_edit', 'prepare_notifications_read'):
+    if name in ADMIN_TOOLS:
         from . import agent_admin
         return agent_admin.prepare(user, conversation, name, args)
     if name == 'prepare_task':
@@ -445,7 +475,7 @@ def confirm(user, conversation, proposal_id, cancel=False):
     require(user.is_active)
     name = proposal.payload['tool']
     args = TOOLS[name][0].model_validate(proposal.payload['args'])
-    if name in ('prepare_employee', 'prepare_department', 'prepare_task_edit', 'prepare_notifications_read'):
+    if name in ADMIN_TOOLS:
         from . import agent_admin
         return agent_admin.confirm(user, proposal, name, args)
     lock_id = getattr(args, 'task_id', None) or getattr(args, 'parent_id', None)
@@ -490,8 +520,12 @@ def execute(user, conversation, name, raw, references):
         references.update(t.pk for t in children)
         pending = task.deadline_requests.filter(state='pending').first()
         return {**row(task), 'description': task.description[:6000], 'issuer': task.issuer.full_name,
-                'participants': [{'name': p.user.full_name, 'part': p.part, 'status': p.get_status_display()}
+                'participants': [{'id': p.pk, 'name': p.user.full_name, 'part': p.part,
+                                  'kind': p.kind, 'status': p.get_status_display()}
                                  for p in task.participants.select_related('user')[:20]],
+                'attachments': [{'name': a.name, 'size': a.size_label} for a in task.attachments.all()[:20]],
+                'letter': {'number': task.letter_number, 'date': task.letter_date.isoformat() if task.letter_date else None,
+                           'sender': task.letter_sender} if task.letter_number or task.letter_date or task.letter_sender else None,
                 'permitted_actions': actions_for(user, task), 'can_delegate': can_delegate(user, task),
                 'children': [row(t) for t in children],
                 'pending_deadline': {'due_at': pending.proposed_due_at.isoformat(), 'reason': pending.reason[:1500]} if pending else None,
@@ -511,6 +545,16 @@ def execute(user, conversation, name, raw, references):
         if args.task_id is not None:
             references.add(args.task_id)
         return result
+    if name == 'open_report':
+        from . import reports
+        require(user.can_assign or user.can_oversee)
+        period = reports.parse_week(args.week) if args.week else None
+        if args.week and not period:
+            raise ValidationError('Haftani 2026-W38 ko‘rinishida ayting.')
+        params = {**({'week': args.week} if period else {}), **({'format': 'xlsx'} if args.download else {})}
+        label = ('Xodimlar statistikasi — ' + reports.period_label(period)) + (' (Excel)' if args.download else '')
+        return {'navigation': {'url': reverse('employees') + ('?' + urlencode(params) if params else ''), 'label': label},
+                'message': ('Excel fayl yuklab olinmoqda: ' if args.download else 'Sahifani ochyapman: ') + label}
     if name.startswith('prepare_'):
         result = prepare(user, conversation, name, args)
         task_id = getattr(args, 'task_id', None) or getattr(args, 'parent_id', None)

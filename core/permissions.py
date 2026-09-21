@@ -5,7 +5,8 @@ from .models import TaskParticipant, User
 
 def assignees_for(user):
     users = User.objects.filter(is_active=True).exclude(pk=user.pk).exclude(role=User.Role.CHAIR)
-    if user.is_chair:
+    if user.is_chair or user.is_secretary:
+        # The secretary writes up the chair's instructions for every department.
         return users
     if user.is_office:
         # The office forwards incoming letters to department heads, not to staff.

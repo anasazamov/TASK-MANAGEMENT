@@ -21,9 +21,24 @@ class LocalDateTimeInput(forms.DateTimeInput):
         super().__init__(format='%Y-%m-%dT%H:%M', **kwargs)
 
 
+class MultipleFileInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+
+class MultipleFileField(forms.FileField):
+    def __init__(self, **kwargs):
+        super().__init__(widget=MultipleFileInput(attrs={'multiple': True}), **kwargs)
+
+    def clean(self, data, initial=None):
+        items = data if isinstance(data, (list, tuple)) else [data]
+        return [super(MultipleFileField, self).clean(item, initial) for item in items if item not in (None, '')]
+
+
 class TaskForm(forms.ModelForm):
     due_at = forms.DateTimeField(label='Muddat sanasi va vaqti', required=False, widget=LocalDateTimeInput(),
                                  help_text='Toshkent vaqti. Bo‘sh qoldirilsa — muddatsiz topshiriq.')
+    files = MultipleFileField(label='Fayllar', required=False,
+                              help_text='Xat nusxasi yoki hujjatlar. Bir nechta fayl tanlash mumkin.')
 
     class Meta:
         model = Task
@@ -42,7 +57,11 @@ class TaskForm(forms.ModelForm):
         self.fields['assignee'].empty_label = 'Ijrochini tanlang'
         self.fields['assignee'].label_from_instance = lambda u: f'{u.short_name} — {u.job_title}'
         for name in ('letter_number', 'letter_date', 'letter_sender'):
-            self.fields[name].required = False
+            # Incoming letters are registered by the chancellery; nobody else fills these.
+            if user.is_office:
+                self.fields[name].required = False
+            else:
+                del self.fields[name]
 
     def clean(self):
         data = super().clean()

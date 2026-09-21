@@ -91,6 +91,37 @@ class OfficeAndSecretaryTests(TestCase):
         for text in ['01-12/345', '15.09.2026', 'Moliya vazirligi']:
             self.assertContains(page, text)
 
+    def test_letter_fields_belong_to_the_chancellery_form_only(self):
+        for user, visible in [(self.office, True), (self.head, False), (self.chair, False), (self.secretary, False)]:
+            with self.subTest(role=user.role):
+                self.client.force_login(user)
+                page = self.client.get('/tasks/new/')
+                self.assertEqual(('Xat raqami' in page.content.decode()), visible)
+        self.client.force_login(self.head)
+        self.client.post('/tasks/new/', {
+            'title': 'Xatsiz topshiriq', 'description': '', 'assignee': self.employee.pk,
+            'due_at': timezone.localtime(timezone.now()+timedelta(days=2)).strftime('%Y-%m-%dT%H:%M'),
+            'letter_number': '01-12/999', 'letter_sender': 'Soxta'})
+        task = Task.objects.get(title='Xatsiz topshiriq')
+        self.assertEqual((task.letter_number, task.letter_sender), ('', ''))
+
+    def test_files_can_be_attached_while_creating_the_task(self):
+        self.client.force_login(self.head)
+        response = self.client.post('/tasks/new/', {
+            'title': 'Fayl bilan topshiriq', 'description': '', 'assignee': self.employee.pk,
+            'due_at': timezone.localtime(timezone.now()+timedelta(days=2)).strftime('%Y-%m-%dT%H:%M'),
+            'files': [self.file(), self.file('ilova.docx', b'PK test')]})
+        task = Task.objects.get(title='Fayl bilan topshiriq')
+        self.assertRedirects(response, task.get_absolute_url())
+        self.assertEqual({a.name for a in task.attachments.all()}, {'xat.pdf', 'ilova.docx'})
+        refused = self.client.post('/tasks/new/', {
+            'title': 'Noto‘g‘ri fayl', 'description': '', 'assignee': self.employee.pk,
+            'due_at': timezone.localtime(timezone.now()+timedelta(days=2)).strftime('%Y-%m-%dT%H:%M'),
+            'files': [self.file('virus.exe', b'MZ')]}, follow=True)
+        created = Task.objects.get(title='Noto‘g‘ri fayl')
+        self.assertEqual(created.attachments.count(), 0)
+        self.assertContains(refused, 'virus.exe')
+
     def file(self, name='xat.pdf', content=b'%PDF-1.4 test'):
         return SimpleUploadedFile(name, content, content_type='application/pdf')
 
@@ -119,6 +150,21 @@ class OfficeAndSecretaryTests(TestCase):
         with self.assertRaises(PermissionDenied):
             add_attachment(self.other_head, self.task.pk, self.file())
         self.assertFalse(TaskAttachment.objects.exists())
+
+    def test_task_tab_counts_follow_the_employee_and_search_filters(self):
+        from .views import task_list_context
+        from django.http import QueryDict
+        create_task(self.head, dict(title='Boshqa ish', description='', assignee=self.employee, due_at=None))
+        create_task(self.other_head, dict(title='IT ishi', description='',
+                                          assignee=self.other_head.department.employees.create(
+                                              username='it', full_name='IT Xodim', role='employee'), due_at=None))
+        everything = dict((key, count) for key, _, count in task_list_context(self.chair, QueryDict(''))['filters'])
+        self.assertEqual(everything['all'], 3)
+        filtered = task_list_context(self.chair, QueryDict(f'employee={self.employee.pk}'))
+        counts = dict((key, count) for key, _, count in filtered['filters'])
+        self.assertEqual((counts['all'], counts['undated'], counts['active']), (2, 1, 2))
+        searched = task_list_context(self.chair, QueryDict('q=Boshqa'))
+        self.assertEqual(dict((key, count) for key, _, count in searched['filters'])['all'], 1)
 
     def test_agent_opens_and_downloads_the_employee_report(self):
         from . import agent_tools

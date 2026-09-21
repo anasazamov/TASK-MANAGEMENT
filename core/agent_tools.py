@@ -390,8 +390,9 @@ def new_task_data(user, args):
                          letter_date=args.letter_date or '', letter_sender=args.letter_sender or ''), user=user, parent=parent)
     if not form.is_valid():
         raise ValidationError([str(error) for errors in form.errors.values() for error in errors])
+    # Letter fields exist on the form for the chancellery only; others simply have none.
     return {k: form.cleaned_data[k] for k in ['title', 'description', 'assignee', 'due_at',
-                                              'letter_number', 'letter_date', 'letter_sender']}, parent
+            'letter_number', 'letter_date', 'letter_sender'] if k in form.cleaned_data}, parent
 
 
 ACTION_LABELS = dict(comment='Izoh qo‘shish', submit='Ijroni topshirish', accept='Ijroni qabul qilish',

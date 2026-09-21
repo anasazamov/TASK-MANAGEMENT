@@ -6,6 +6,7 @@ from django.db.models import Count, Q
 from django.utils import timezone
 
 from .models import Task
+from .permissions import assignees_for
 
 COLUMNS = [('T/R', 7), ('F.I.Sh.', 50), ('Topshiriqlar soni', 15), ('Bajarilmoqda', 17),
            ('Bajarilmagan', 19), ('Tanishilmagan topshiriqlar', 19)]
@@ -33,12 +34,18 @@ def employee_stats(user, period=None):
         tasks = tasks.filter(created_at__gte=period[0], created_at__lt=period[1])
     now = timezone.now()
     overdue = Q(status='active', due_at__lt=now)
-    return list(tasks.values('assignee_id', 'assignee__full_name').annotate(
+    rows = list(tasks.values('assignee_id', 'assignee__full_name').annotate(
         total=Count('pk'),
         in_progress=Count('pk', filter=Q(status='submitted') | (Q(status='active') & ~overdue)),
         overdue=Count('pk', filter=overdue),
         unseen=Count('pk', filter=Q(seen_at__isnull=True)),
-    ).order_by('-total', 'assignee__full_name'))
+    ))
+    # People this user may assign belong in the workload even with nothing on them.
+    counted = {row['assignee_id'] for row in rows}
+    rows += [{'assignee_id': person.pk, 'assignee__full_name': person.full_name,
+              'total': 0, 'in_progress': 0, 'overdue': 0, 'unseen': 0}
+             for person in assignees_for(user).exclude(pk__in=counted)]
+    return sorted(rows, key=lambda row: (-row['total'], row['assignee__full_name']))
 
 
 def period_label(period):

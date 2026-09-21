@@ -73,9 +73,14 @@ class TaskQuerySet(models.QuerySet):
             return self.none()
         if user.is_chair:
             return self
+        # Subquery, not a join: an extra participant must not duplicate task rows.
+        parts = TaskParticipant.objects.filter(user=user).values('task')
         if user.role == User.Role.HEAD and user.department_id:
-            return self.filter(Q(assignee__department_id=user.department_id) | Q(issuer=user) | Q(assignee=user))
-        return self.filter(assignee=user)
+            parts = TaskParticipant.objects.filter(
+                Q(user__department_id=user.department_id) | Q(user=user)).values('task')
+            return self.filter(Q(assignee__department_id=user.department_id) | Q(issuer=user)
+                               | Q(assignee=user) | Q(pk__in=parts))
+        return self.filter(Q(assignee=user) | Q(pk__in=parts))
 
     def enriched(self):
         return self.select_related('issuer', 'assignee', 'assignee__department', 'parent', 'parent__issuer', 'parent__assignee')
@@ -172,6 +177,34 @@ class Task(models.Model):
         return list(reversed(result))
 
 
+class TaskParticipant(models.Model):
+    """An additional executor responsible for one named part of the same task."""
+    class Status(models.TextChoices):
+        ACTIVE = 'active', 'Bajarilmoqda'
+        SUBMITTED = 'submitted', 'Topshirildi'
+        ACCEPTED = 'accepted', 'Qabul qilindi'
+
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='participants')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='task_parts')
+    part = models.CharField('Ijro qismi', max_length=240)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.ACTIVE)
+    added_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    created_at = models.DateTimeField(default=timezone.now)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['pk']
+        constraints = [models.UniqueConstraint(fields=['task', 'user'], name='one_part_per_participant')]
+
+    def __str__(self):
+        return f'{self.user.short_name}: {self.part}'
+
+    @property
+    def status_label(self):
+        return self.Status(self.status).label
+
+
 class DeadlineRequest(models.Model):
     class State(models.TextChoices):
         PENDING = 'pending', 'Kutilmoqda'
@@ -202,6 +235,7 @@ class Event(models.Model):
         REPORT = 'report', 'Hisobot'
         COMMENT = 'comment', 'Izoh'
         ALERT = 'alert', 'Ogohlantirish'
+        PART = 'part', 'Ijro qismi'
 
     task = models.ForeignKey(Task, on_delete=models.PROTECT, related_name='events')
     actor = models.ForeignKey(User, null=True, on_delete=models.PROTECT, related_name='+')
@@ -224,6 +258,26 @@ class Notification(models.Model):
     class Meta:
         ordering = ['-created_at']
         constraints = [models.UniqueConstraint(fields=['user', 'dedupe_key'], name='unique_notification_delivery')]
+
+
+class GeneratedPage(models.Model):
+    """An agent-built page: its layout is model-written HTML, its numbers are not."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='generated_pages')
+    title = models.CharField('Sahifa nomi', max_length=80)
+    html = models.TextField(editable=False)
+    tool = models.JSONField(editable=False)
+    arguments = models.JSONField(default=dict, editable=False)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return self.title
+
+    def get_absolute_url(self):
+        return reverse('generated_page', args=[self.pk])
 
 
 class AgentConversation(models.Model):

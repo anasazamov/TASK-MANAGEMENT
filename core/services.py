@@ -2,8 +2,8 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.utils import timezone
 
-from .models import DeadlineRequest, Event, Notification, Task
-from .permissions import assignees_for, can_delegate, can_manage
+from .models import DeadlineRequest, Event, Notification, Task, TaskParticipant
+from .permissions import assignees_for, can_add_participants, can_delegate, can_manage
 
 
 def require(condition):
@@ -71,6 +71,66 @@ def create_task(user, data, parent=None):
 
 
 @transaction.atomic
+def add_participant(user, task_id, person_id, part):
+    task = Task.objects.select_for_update().get(pk=task_id)
+    require(Task.objects.visible_to(user).filter(pk=task_id).exists() and can_add_participants(user, task))
+    part = (part or '').strip()
+    if not 3 <= len(part) <= 240:
+        raise ValidationError('Ijro qismini 3–240 belgi bilan yozing.')
+    person = assignees_for(user).filter(pk=person_id).first()
+    if not person or person.pk in (task.assignee_id, task.issuer_id):
+        raise ValidationError('Bu xodimni qo‘shimcha ijrochi qilib qo‘sha olmaysiz.')
+    if task.participants.filter(user=person).exists():
+        raise ValidationError('Bu xodim allaqachon qo‘shimcha ijrochi.')
+    participant = TaskParticipant.objects.create(task=task, user=person, part=part, added_by=user)
+    log(task, user, Event.Kind.PART, f'Qo‘shimcha ijrochi: {person.short_name} — {part}')
+    notify(task, [person], 'Sizga topshiriqning bir qismi biriktirildi')
+    notify(task, [task.assignee], f'{person.short_name} topshiriqqa qo‘shimcha ijrochi qilib qo‘shildi')
+    return participant
+
+
+@transaction.atomic
+def part_action(user, participant_id, action, text=''):
+    participant = TaskParticipant.objects.select_for_update().select_related('task', 'user').get(pk=participant_id)
+    task = participant.task
+    require(Task.objects.visible_to(user).filter(pk=task.pk).exists())
+    text = text.strip()[:10000]
+    if action == 'remove':
+        require(can_add_participants(user, task))
+        participant.delete()
+        log(task, user, Event.Kind.PART, f'Qo‘shimcha ijrochi olib tashlandi: {participant.user.short_name}')
+        notify(task, [participant.user], 'Topshiriq qismi bekor qilindi')
+        return None
+    if action == 'submit_part':
+        require(participant.user_id == user.pk)
+        if participant.status != TaskParticipant.Status.ACTIVE:
+            raise ValidationError('Bu qism allaqachon topshirilgan.')
+        if not text:
+            raise ValidationError('Bajarilgan ish haqida qisqa hisobot yozing.')
+        participant.status, participant.submitted_at = TaskParticipant.Status.SUBMITTED, timezone.now()
+        log(task, user, Event.Kind.PART, f'«{participant.part}» qismi topshirildi. {text}')
+        notify(task, [task.issuer, task.assignee], f'{user.short_name} topshiriq qismini topshirdi')
+    elif action in ('accept_part', 'return_part'):
+        require(can_add_participants(user, task))
+        if participant.status != TaskParticipant.Status.SUBMITTED:
+            raise ValidationError('Bu qism hali topshirilmagan.')
+        if action == 'accept_part':
+            participant.status, participant.accepted_at = TaskParticipant.Status.ACCEPTED, timezone.now()
+            log(task, user, Event.Kind.PART, f'«{participant.part}» qismi qabul qilindi. {text}'.strip())
+            notify(task, [participant.user], 'Topshiriq qismingiz qabul qilindi')
+        else:
+            if not text:
+                raise ValidationError('Qaytarish sababini yozing.')
+            participant.status, participant.submitted_at = TaskParticipant.Status.ACTIVE, None
+            log(task, user, Event.Kind.PART, f'«{participant.part}» qismi qayta ishlashga qaytarildi. {text}')
+            notify(task, [participant.user], 'Topshiriq qismingiz qaytarildi')
+    else:
+        raise ValidationError('Noma’lum amal.')
+    participant.save()
+    return participant
+
+
+@transaction.atomic
 def task_action(user, task_id, action, text='', due_at=None):
     task = Task.objects.select_for_update(of=('self',)).enriched().get(pk=task_id)
     require(Task.objects.visible_to(user).filter(pk=task_id).exists())
@@ -79,6 +139,8 @@ def task_action(user, task_id, action, text='', due_at=None):
         raise ValidationError('Matn 10 000 belgidan oshmasligi kerak.')
     manager = can_manage(user, task)
     owner = task.assignee_id == user.pk
+    helper = task.participants.filter(user=user).exists()
+    open_parts = task.participants.exclude(status=TaskParticipant.Status.ACCEPTED).exists()
     mark_seen(task, user)
     if action == 'comment':
         if not text:
@@ -94,6 +156,8 @@ def task_action(user, task_id, action, text='', due_at=None):
             raise ValidationError('Ijro allaqachon topshirilgan.')
         if active_descendants(task):
             raise ValidationError('Avval barcha quyi topshiriqlar ijrosi qabul qilinishi kerak.')
+        if open_parts:
+            raise ValidationError('Avval qo‘shimcha ijrochilar qismlari qabul qilinishi kerak.')
         if not text:
             raise ValidationError('Bajarilgan ish haqida qisqa hisobot yozing.')
         task.status = Task.Status.SUBMITTED
@@ -166,7 +230,7 @@ def task_action(user, task_id, action, text='', due_at=None):
         log(task, user, Event.Kind.REPORT, 'Haftalik hisobot so‘raldi.')
         notify(task, [task.assignee], 'Haftalik hisobot yuborishingiz so‘raldi')
     elif action == 'report':
-        require(owner)
+        require(owner or helper)
         if not text:
             raise ValidationError('Hisobot matnini kiriting.')
         task.last_report_at = timezone.now()

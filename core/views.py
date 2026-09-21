@@ -15,11 +15,15 @@ from django.utils import timezone
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from . import reports
-from .forms import ActionForm, DepartmentForm, EmployeeEditForm, EmployeeForm, LoginForm, TaskForm
-from .models import DeadlineRequest, Department, Event, Task, User
-from .permissions import can_delegate, can_manage
-from .services import create_task, mark_seen, require, task_action
+from django.utils.html import escape
+
+from . import pages, reports
+from .forms import (ActionForm, DepartmentForm, EmployeeEditForm, EmployeeForm, LoginForm,
+                    ParticipantForm, PartActionForm, TaskForm)
+from .models import DeadlineRequest, Department, Event, Task, TaskParticipant, User
+from .permissions import can_add_participants, can_delegate, can_manage
+from .services import add_participant as add_task_participant
+from .services import create_task, mark_seen, part_action, require, task_action
 
 
 class SignInView(LoginView):
@@ -142,9 +146,46 @@ def task_detail(request, pk):
         'page_title': 'Topshiriq tafsilotlari', 'subtitle': task.code, 'task': task,
         'can_manage': can_manage(request.user, task), 'can_delegate': can_delegate(request.user, task),
         'is_assignee': task.assignee_id == request.user.pk, 'ancestors': ancestor_rows,
+        'participants': task.participants.select_related('user'),
+        'participant_form': ParticipantForm(user=request.user, task=task) if can_add_participants(request.user, task) else None,
+        'can_add_participants': can_add_participants(request.user, task),
         'children': tasks_for(request.user).filter(parent=task), 'events': task.events.select_related('actor'),
         'pending_request': task.deadline_requests.filter(state='pending').select_related('requester').first(),
     })
+
+
+@login_required
+@require_POST
+def add_participant(request, pk):
+    task = get_object_or_404(tasks_for(request.user), pk=pk)
+    form = ParticipantForm(request.POST, user=request.user, task=task)
+    if form.is_valid():
+        try:
+            add_task_participant(request.user, task.pk, form.cleaned_data['person'].pk, form.cleaned_data['part'])
+        except ValidationError as error:
+            messages.error(request, ' '.join(error.messages))
+        else:
+            messages.success(request, 'Qo‘shimcha ijrochi qo‘shildi va unga xabar yuborildi.')
+    else:
+        messages.error(request, 'Xodim va ijro qismini tekshiring.')
+    return redirect('task_detail', pk=pk)
+
+
+@login_required
+@require_POST
+def participant_action(request, pk, participant_id):
+    get_object_or_404(tasks_for(request.user), pk=pk)
+    form = PartActionForm(request.POST)
+    if form.is_valid():
+        try:
+            part_action(request.user, participant_id, **form.cleaned_data)
+        except (ValidationError, TaskParticipant.DoesNotExist) as error:
+            messages.error(request, ' '.join(error.messages) if isinstance(error, ValidationError) else 'Qism topilmadi.')
+        else:
+            messages.success(request, 'Amal bajarildi. O‘zgarish tarixga yozildi.')
+    else:
+        messages.error(request, 'Ma’lumotlarni tekshiring.')
+    return redirect('task_detail', pk=pk)
 
 
 @login_required
@@ -200,6 +241,42 @@ def employees(request):
         return response
     return render(request, 'core/employees.html', {'page_title': 'Xodimlar', 'subtitle': 'Topshiriq yuklamasi va muddat holati',
         'rows': rows, 'week': week if period else '', 'default_week': reports.current_week(), 'period_label': reports.period_label(period)})
+
+
+@login_required
+def generated_pages(request):
+    return render(request, 'core/pages.html', {'page_title': 'Agent sahifalari',
+        'subtitle': 'Agent siz uchun tayyorlagan sahifalar', 'items': request.user.generated_pages.all()})
+
+
+@login_required
+def generated_page(request, pk):
+    page = get_object_or_404(request.user.generated_pages, pk=pk)
+    return render(request, 'core/generated_page.html', {'page_title': page.title,
+        'subtitle': 'Agent tayyorlagan sahifa · ma’lumot ochilganda yangilanadi', 'page': page})
+
+
+@login_required
+def generated_page_content(request, pk):
+    page = get_object_or_404(request.user.generated_pages, pk=pk)
+    try:
+        html = pages.body(request.user, page)
+    except ValidationError as error:
+        html = '<p class="page-empty">' + escape('; '.join(error.messages)) + '</p>'
+    response = render(request, 'core/generated_page_content.html', {'body': html, 'title': page.title})
+    # The layout is model-written: no scripts, no network, no access to this session.
+    response['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'; sandbox"
+    response['X-Frame-Options'] = 'SAMEORIGIN'
+    response['Referrer-Policy'] = 'no-referrer'
+    return response
+
+
+@login_required
+@require_POST
+def generated_page_delete(request, pk):
+    get_object_or_404(request.user.generated_pages, pk=pk).delete()
+    messages.success(request, 'Sahifa o‘chirildi.')
+    return redirect('generated_pages')
 
 
 @login_required

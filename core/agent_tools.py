@@ -483,6 +483,8 @@ def execute(user, conversation, name, raw, references):
         references.update(t.pk for t in children)
         pending = task.deadline_requests.filter(state='pending').first()
         return {**row(task), 'description': task.description[:6000], 'issuer': task.issuer.full_name,
+                'participants': [{'name': p.user.full_name, 'part': p.part, 'status': p.get_status_display()}
+                                 for p in task.participants.select_related('user')[:20]],
                 'permitted_actions': actions_for(user, task), 'can_delegate': can_delegate(user, task),
                 'children': [row(t) for t in children],
                 'pending_deadline': {'due_at': pending.proposed_due_at.isoformat(), 'reason': pending.reason[:1500]} if pending else None,

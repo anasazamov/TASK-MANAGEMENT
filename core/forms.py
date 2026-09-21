@@ -55,6 +55,24 @@ class ActionForm(forms.Form):
     due_at = forms.DateTimeField(required=False, widget=LocalDateTimeInput())
 
 
+class ParticipantForm(forms.Form):
+    person = forms.ModelChoiceField(queryset=User.objects.none(), label='Qo‘shimcha ijrochi', empty_label='Xodimni tanlang')
+    part = forms.CharField(label='Ijro qismi', max_length=240, strip=True,
+                           widget=forms.TextInput(attrs={'placeholder': 'Masalan: smeta hisob-kitobi'}))
+
+    def __init__(self, *args, user, task, **kwargs):
+        super().__init__(*args, **kwargs)
+        taken = task.participants.values('user')
+        self.fields['person'].queryset = assignees_for(user).exclude(
+            pk__in=[task.assignee_id, task.issuer_id]).exclude(pk__in=taken)
+        self.fields['person'].label_from_instance = lambda u: f'{u.short_name} — {u.job_title}'
+
+
+class PartActionForm(forms.Form):
+    action = forms.ChoiceField(choices=[(a, a) for a in ['submit_part', 'accept_part', 'return_part', 'remove']])
+    text = forms.CharField(required=False, max_length=10000, strip=True)
+
+
 class DepartmentForm(forms.ModelForm):
     class Meta:
         model = Department

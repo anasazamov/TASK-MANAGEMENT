@@ -14,5 +14,9 @@ def can_manage(user, task):
     return user.is_active and (user.is_chair or task.issuer_id == user.pk) and task.assignee_id != user.pk
 
 
+def can_add_participants(user, task):
+    return can_manage(user, task) and task.status != 'accepted'
+
+
 def can_delegate(user, task):
     return user.can_assign and task.assignee_id == user.pk and task.status == 'active'

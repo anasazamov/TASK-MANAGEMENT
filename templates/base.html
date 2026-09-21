@@ -29,6 +29,7 @@
     <div class="nav-caption">NAZORAT</div>
     {% if user.can_assign %}<a class="nav-link {% if current_page == 'chains' %}selected{% endif %}" href="{% url 'chains' %}">{% icon 'link' %}<span>Nazorat zanjiri</span></a>{% endif %}
     <a class="nav-link {% if current_page == 'timeline' %}selected{% endif %}" href="{% url 'timeline' %}">{% icon 'history' %}<span>Harakatlar tarixi</span></a>
+    <a class="nav-link {% if current_page == 'generated_pages' or current_page == 'generated_page' %}selected{% endif %}" href="{% url 'generated_pages' %}">{% icon 'grid' %}<span>Agent sahifalari</span></a>
   </nav>
   <div class="sidebar-bottom">
     <div class="workspace-note"><span class="online-dot"></span> Yagona ijro nazorati tizimi</div>

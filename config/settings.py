@@ -111,6 +111,24 @@ VAPID_SUBJECT = os.getenv('VAPID_SUBJECT', 'mailto:admin@example.uz').strip()
 TASK_FILE_MAX_BYTES = 25 * 1024 * 1024
 TASK_FILE_EXTENSIONS = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt',
                         '.rtf', '.csv', '.jpg', '.jpeg', '.png', '.heic', '.zip', '.rar', '.7z'}
+# Without this, the app's own warnings (voice, push, Telegram, agent) reach no
+# handler in production. DJANGO_LOG_FILE adds a rotating file next to the console.
+LOG_FILE = os.getenv('DJANGO_LOG_FILE', '').strip()
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {'standard': {'format': '{asctime} {levelname} {name}: {message}', 'style': '{'}},
+    'handlers': {'console': {'class': 'logging.StreamHandler', 'formatter': 'standard'}},
+    'root': {'handlers': ['console'], 'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO')},
+    'loggers': {'django.request': {'handlers': ['console'], 'level': 'ERROR', 'propagate': False}},
+}
+if LOG_FILE:
+    LOGGING['handlers']['file'] = {'class': 'logging.handlers.RotatingFileHandler', 'filename': LOG_FILE,
+                                   'maxBytes': 5 * 1024 * 1024, 'backupCount': 5, 'formatter': 'standard',
+                                   'encoding': 'utf-8'}
+    LOGGING['root']['handlers'].append('file')
+    LOGGING['loggers']['django.request']['handlers'].append('file')
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'

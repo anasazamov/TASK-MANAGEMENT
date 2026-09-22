@@ -9,7 +9,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from . import telegram
-from .models import Department, PushSubscription, Task, User
+from .models import Department, User
 from .services import create_task
 
 TOKEN = '123456:test-bot-token'

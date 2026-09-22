@@ -91,6 +91,8 @@ if __name__ == '__main__':
     parser.add_argument('--ssl-keyfile', help='Use this key instead of the generated one.')
     parser.add_argument('--ssl-certfile', help='Use this certificate instead of the generated one.')
     parser.add_argument('--san', action='append', default=[], help='Extra IP/domain for the generated certificate.')
+    parser.add_argument('--proxy', action='store_true',
+                        help='Behind a reverse proxy: trust its X-Forwarded-For/Proto headers.')
     args = parser.parse_args()
     secure = args.https or bool(args.ssl_certfile)
     port = args.port or (443 if secure else 8000)
@@ -104,7 +106,8 @@ if __name__ == '__main__':
     suffix = '' if port == (443 if secure else 80) else f':{port}'
     print('Topshiriq nazorati: ' + ', '.join(f"{'https' if secure else 'http'}://{name}{suffix}" for name in shown), flush=True)
     config = uvicorn.Config('config.asgi:application', host=args.host, port=port,
-                            ws='websockets-sansio', ws_max_size=65536, lifespan='off', proxy_headers=False,
+                            ws='websockets-sansio', ws_max_size=65536, lifespan='off',
+                            proxy_headers=args.proxy, forwarded_allow_ips='*' if args.proxy else None,
                             access_log=False, **ssl)
 
     def ignore_client_resets(loop, context):

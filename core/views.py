@@ -1,28 +1,26 @@
+import json
 from datetime import timedelta
-from urllib.parse import urlencode
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login, logout, update_session_auth_hash
-from django.utils.crypto import constant_time_compare
-from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import PasswordChangeForm, SetPasswordForm
 from django.contrib.auth.views import LoginView
+from django.contrib.staticfiles import finders
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
+from django.db import OperationalError, connection
 from django.db.models import Count, Q
-import json
-
-from django.conf import settings
-from django.contrib.staticfiles import finders
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
-from django.views.decorators.cache import never_cache
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.urls import reverse
-from django.views.decorators.http import require_POST
-
+from django.utils.crypto import constant_time_compare
 from django.utils.html import escape
+from django.views.decorators.cache import never_cache
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_GET, require_POST
 
 from . import pages, reports, telegram
 from .forms import (ActionForm, AttachmentForm, ControllerForm, DepartmentForm, EmployeeEditForm,
@@ -35,11 +33,33 @@ from .services import add_participant as add_task_participant
 from .services import create_task, mark_seen, part_action, remove_attachment, require, task_action
 
 
+LOGIN_ATTEMPTS = 10
+LOGIN_WINDOW = 300
+
+
 class SignInView(LoginView):
     template_name = 'registration/login.html'
     authentication_form = LoginForm
     redirect_authenticated_user = True
 
+    def post(self, request, *args, **kwargs):
+        """Slow down guessing: accounts start on a shared password everyone knows.
+
+        The counter lives in the cache, so several processes need a shared cache
+        backend to enforce this together.
+        """
+        key = 'login:{}:{}'.format(request.META.get('REMOTE_ADDR', ''), request.POST.get('username', '')[:60])
+        attempts = cache.get(key, 0)
+        if attempts >= LOGIN_ATTEMPTS:
+            form = self.get_form()
+            form.add_error(None, 'Juda ko‘p urinish. 5 daqiqadan so‘ng qayta urinib ko‘ring.')
+            return self.form_invalid(form)
+        response = super().post(request, *args, **kwargs)
+        if request.user.is_authenticated:
+            cache.delete(key)
+        else:
+            cache.set(key, attempts + 1, LOGIN_WINDOW)
+        return response
 
 
 def tasks_for(user):
@@ -307,6 +327,17 @@ def employees(request):
         return response
     return render(request, 'core/employees.html', {'page_title': 'Xodimlar', 'subtitle': 'Topshiriq yuklamasi va muddat holati',
         'rows': rows, 'week': week if period else '', 'default_week': reports.current_week(), 'period_label': reports.period_label(period)})
+
+
+@never_cache
+@require_GET
+def healthz(request):
+    """For the proxy and monitoring: does this process still reach its database?"""
+    try:
+        connection.ensure_connection()
+    except OperationalError:
+        return JsonResponse({'status': 'database_unavailable'}, status=503)
+    return JsonResponse({'status': 'ok'})
 
 
 @csrf_exempt

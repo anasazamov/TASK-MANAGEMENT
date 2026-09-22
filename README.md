@@ -197,7 +197,7 @@ Bu buyruq muddat yaqinlashishi, buzilishi, zanjir bo‘yicha eskalatsiya va eski
 2. `.env.example`dan `.env` yarating. `DJANGO_DEBUG=0`, `DJANGO_SECRET_KEY`, domen uchun `DJANGO_ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS` va DB qiymatlarini sozlang.
 3. `python manage.py migrate` va `python manage.py collectstatic --noinput`.
 4. `python manage.py createsuperuser`; admin orqali rais hisobi yarating.
-5. `python serve.py --host 127.0.0.1 --port 8000`ni servis sifatida ishlating. Oldida HTTPS reverse proxy (Nginx/Caddy/IIS) bo‘lsin. `/voice/live-stream/` uchun WebSocket Upgrade, sessiya cookie va Origin headerlari o‘tsin. `/voice/realtime-speak/` javobini proxy buferlamasin; ulanish timeouti kamida 180 soniya bo‘lsin. `TRUST_PROXY_HTTPS=1`ni faqat proxy kiruvchi `X-Forwarded-Proto` headerini tozalab o‘zi yozsa yoqing.
+5. `python serve.py --host 127.0.0.1 --port 8000 --proxy`ni servis sifatida ishlating (`--proxy` proksi bergan `X-Forwarded-For/Proto` sarlavhalariga ishonadi). Oldida HTTPS reverse proxy (Nginx/Caddy/IIS) bo‘lsin. `/voice/live-stream/` uchun WebSocket Upgrade, sessiya cookie va Origin headerlari o‘tsin. `/voice/realtime-speak/` javobini proxy buferlamasin; ulanish timeouti kamida 180 soniya bo‘lsin. `TRUST_PROXY_HTTPS=1`ni faqat proxy kiruvchi `X-Forwarded-Proto` headerini tozalab o‘zi yozsa yoqing.
 6. `python manage.py seed_staff` bilan xodimlar ro‘yxatini yarating (boshlang‘ich parol `12345678`; xodimlar almashtirsin).
 7. Fayllar uchun MinIO/S3: `S3_ENDPOINT_URL`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET`. Bucket yopiq bo‘lsin — havolalar imzolanadi.
 8. Bildirishnomalar uchun `manage.py push_keys` natijasini `.env` ga qo‘ying. Ular ishlashi uchun **haqiqiy sertifikatli domen** kerak; obuna va brauzer ruxsati manzilga bog‘lanadi, shuning uchun domen o‘zgarsa xodimlar qaytadan yoqadi.
@@ -207,7 +207,12 @@ Bu buyruq muddat yaqinlashishi, buzilishi, zanjir bo‘yicha eskalatsiya va eski
 schtasks /create /tn "Topshiriq eslatmalari" /sc hourly /ru SYSTEM /tr "'D:\Example\TASK-MANAGEMENT\.venv\Scripts\python.exe' 'D:\Example\TASK-MANAGEMENT\manage.py' send_reminders"
 ```
 
-10. `python manage.py check --deploy`, DB backup, login rate limiting (reverse proxy darajasida) va log monitoringni sozlang. `CSRF_TRUSTED_ORIGINS` da `*` emas, aniq domenni yozing: `*` faqat lokal tarmoq uchun.
+10. `python manage.py check --deploy` toza bo‘lsin. `CSRF_TRUSTED_ORIGINS` da `*` emas, aniq domenni yozing: `*` faqat lokal tarmoq uchun.
+11. Loglarni yig‘ing: `DJANGO_LOG_FILE=D:\logs\topshiriq.log` (5 MB × 5 fayl) va kerak bo‘lsa `DJANGO_LOG_LEVEL=WARNING`. Log’da ovoz, push, Telegram va agent xatolari ko‘rinadi; parol, token va topshiriq matni yozilmaydi.
+12. Monitoring uchun `GET /healthz/` — sessiyasiz ishlaydi, baza yo‘qolsa `503` qaytaradi. Proksi «healthy» tekshiruvini shunga ulang.
+13. Zaxira nusxa: baza fayli/dumpi va fayl saqlagichi (MinIO bucket yoki `media/`). Ular alohida saqlanadi, bittasi ikkinchisini almashtirmaydi.
+
+Parolni taxmin qilishga qarshi himoya ilovada bor: bitta login uchun 5 daqiqada 10 marta xato urinishdan keyin bloklanadi. Hisoblagich keshda turadi, shuning uchun bir nechta jarayon ishlatilsa, umumiy kesh (masalan Redis) sozlanishi kerak.
 
 Production HTTPS cookie/redirect/HSTS sozlamalari `DEBUG=0`da yoqiladi. Static fayllarni WhiteNoise beradi. PostgreSQL va haqiqiy HTTPS serverga deploy lokal tekshiruv doirasiga kirmaydi.
 

@@ -23,13 +23,29 @@
   }
 
   const config = document.getElementById('telegram-config');
-  if (!config || config.dataset.authenticated === 'true') return;
+  if (!config) return;
+  // Inside Telegram the account follows the Telegram user, so a session left by
+  // whoever this Telegram account belonged to before must be replaced, not reused.
+  const opener = app.initDataUnsafe?.user?.id;
+  const signedIn = config.dataset.authenticated === 'true';
+  const marked = config.dataset.sessionTelegram;
+  if (signedIn && opener && String(opener) === marked) return;
+  if (signedIn && !marked) {
+    // A session from before this check, or a password sign-in: verify it once,
+    // then leave it alone so a refused sign-in cannot loop.
+    const flag = 'sic-telegram-checked';
+    try { if (sessionStorage.getItem(flag)) return; sessionStorage.setItem(flag, '1'); } catch (_) { return; }
+  }
 
   async function signIn() {
     const response = await fetch(config.dataset.loginUrl, {method: 'POST', credentials: 'same-origin',
       headers: {'Content-Type': 'application/json'}, body: JSON.stringify({init_data: app.initData})});
     const data = await response.json().catch(() => ({}));
-    if (response.ok) { location.replace(config.dataset.homeUrl); return; }
+    if (response.ok) {
+      if (data.switched) app.showAlert?.(`${data.name} sifatida kirildi.`);
+      location.replace(config.dataset.homeUrl);
+      return;
+    }
     const note = document.querySelector('[data-telegram-note]');
     if (note) note.textContent = data.message || 'Telegram orqali kirib bo‘lmadi.';
     if (data.error === 'not_linked' && data.bot) {

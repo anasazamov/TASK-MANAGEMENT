@@ -15,7 +15,7 @@
 </head>
 <body>
 <a class="skip-link" href="#main">Asosiy mazmunga o‘tish</a>
-<div id="telegram-config" hidden data-login-url="{% url 'telegram_login' %}" data-home-url="{% url 'dashboard' %}" data-authenticated="{{ user.is_authenticated|yesno:'true,false' }}"></div>
+<div id="telegram-config" hidden data-login-url="{% url 'telegram_login' %}" data-home-url="{% url 'dashboard' %}" data-authenticated="{{ user.is_authenticated|yesno:'true,false' }}" data-session-telegram="{{ request.session.telegram_id|default:'' }}"></div>
 {% if user.is_authenticated %}
 <button class="sidebar-scrim" aria-label="Menyuni yopish" data-menu-close></button>
 <aside class="sidebar" id="sidebar">

@@ -63,6 +63,37 @@ class TelegramTests(TestCase):
                 self.assertEqual(refused.status_code, 403)
                 self.assertNotIn('_auth_user_id', self.client.session)
 
+    def test_reopening_after_a_relink_switches_the_account(self):
+        User.objects.filter(pk=self.head.pk).update(telegram_id=555)
+        self.client.post('/telegram/login/', json.dumps({'init_data': init_data()}), content_type='application/json')
+        self.assertEqual(self.client.session['_auth_user_id'], str(self.head.pk))
+        # The phone moves to another employee, so the same Telegram is now theirs.
+        User.objects.filter(pk=self.head.pk).update(telegram_id=None)
+        User.objects.filter(pk=self.employee.pk).update(telegram_id=555)
+        response = self.client.post('/telegram/login/', json.dumps({'init_data': init_data()}),
+                                    content_type='application/json')
+        self.assertTrue(response.json()['switched'])
+        self.assertEqual(self.client.session['_auth_user_id'], str(self.employee.pk))
+        self.assertEqual(self.client.session['telegram_id'], 555)
+        page = self.client.get('/')
+        self.assertContains(page, 'data-session-telegram="555"')
+
+    def test_a_session_left_by_an_unlinked_telegram_account_is_dropped(self):
+        User.objects.filter(pk=self.employee.pk).update(telegram_id=555)
+        self.client.post('/telegram/login/', json.dumps({'init_data': init_data()}), content_type='application/json')
+        User.objects.filter(pk=self.employee.pk).update(telegram_id=None)
+        response = self.client.post('/telegram/login/', json.dumps({'init_data': init_data()}),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 403)
+        self.assertNotIn('_auth_user_id', self.client.session)
+
+    def test_a_password_session_is_kept_when_telegram_is_not_linked(self):
+        self.client.force_login(self.head)
+        response = self.client.post('/telegram/login/', json.dumps({'init_data': init_data(user_id=900)}),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(self.client.session['_auth_user_id'], str(self.head.pk))
+
     def test_unlinked_telegram_account_is_refused_with_the_bot_name(self):
         response = self.client.post('/telegram/login/', json.dumps({'init_data': init_data(user_id=777)}),
                                     content_type='application/json')

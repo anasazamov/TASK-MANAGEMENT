@@ -2,7 +2,7 @@ from datetime import timedelta
 from urllib.parse import urlencode
 
 from django.contrib import messages
-from django.contrib.auth import login, update_session_auth_hash
+from django.contrib.auth import login, logout, update_session_auth_hash
 from django.utils.crypto import constant_time_compare
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
@@ -338,11 +338,19 @@ def telegram_login(request):
         return JsonResponse({'error': 'invalid_init_data',
                              'message': 'Telegram ma’lumoti tasdiqlanmadi. Ilovani Telegram orqali oching.'}, status=403)
     user = telegram.account(person['id'])
+    previous = request.user if request.user.is_authenticated else None
     if not user:
+        # A session left by whoever this Telegram account belonged to must not survive.
+        if previous and request.session.get('telegram_id') == person['id']:
+            logout(request)
         return JsonResponse({'error': 'not_linked', 'bot': settings.TELEGRAM_BOT_USERNAME,
                              'message': 'Telegram hisobingiz bog‘lanmagan. Botga /start yuborib, telefon raqamingizni ulashing.'}, status=403)
+    switched = bool(previous and previous.pk != user.pk)
     login(request, user)
-    return JsonResponse({'status': 'signed_in', 'name': user.full_name})
+    # Remember whose Telegram opened this session: the same browser may have an
+    # older session belonging to whoever that Telegram account used to be.
+    request.session['telegram_id'] = person['id']
+    return JsonResponse({'status': 'signed_in', 'name': user.full_name, 'switched': switched})
 
 
 @never_cache

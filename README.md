@@ -2,6 +2,101 @@
 
 Samarkand Invest Company topshiriqlarini boshqarish uchun Django monolit. Claude Design’dagi **Topshiriqlar — sodda** varianti asosida. UI o‘zbek tilida, muddatlar Asia/Tashkent vaqtida.
 
+Quyida avval production’ga joylash, keyin tizimning o‘zi haqida ma’lumot beriladi. Lokal ishlab chiqish uchun «Lokal ishga tushirish» bo‘limiga o‘ting.
+
+## Production: Docker orqali joylash
+
+Kerak bo‘ladi: Docker va Docker Compose o‘rnatilgan Linux server, **haqiqiy HTTPS sertifikatli domen** (Telegram Mini App va brauzer bildirishnomalari o‘z-o‘zidan imzolangan sertifikat bilan ishlamaydi) hamda alohida PostgreSQL bazasi. Baza ataylab stack ichida emas — u sizning serveringizda, zaxirasi bilan birga turadi.
+
+Stack ichidagi konteynerlar:
+
+| Xizmat | Vazifasi |
+| --- | --- |
+| `web` | Ilova. Konteyner ichida `migrate` + `collectstatic` bajariladi, so‘ng `serve.py --proxy` ishlaydi (`127.0.0.1:8000`). |
+| `reminders` | Muddat eslatmalari sikli: har `REMINDER_INTERVAL` soniyada (standart 3600) `send_reminders`. |
+| `minio` | Topshiriqqa biriktirilgan fayllar uchun S3 saqlagich. Faqat ichki tarmoqda. |
+| `minio-init` | Bir martalik: bucket yaratadi va uni anonim kirishsiz qilib qo‘yadi. |
+
+### 1. Kodni olib, `.env` tayyorlang
+
+```bash
+git clone <repo> topshiriqlar && cd topshiriqlar
+cp .env.production .env
+```
+
+`.env` dagi bo‘sh qiymatlarni to‘ldiring:
+
+- `DJANGO_DEBUG=0`, `DJANGO_SECRET_KEY` (kamida 50 belgi; `#` va bo‘shliq bo‘lmasin — ular `.env`da izoh sifatida o‘qiladi).
+- `DJANGO_ALLOWED_HOSTS=tasks.example.uz`, `CSRF_TRUSTED_ORIGINS=https://tasks.example.uz` — `*` emas, aniq domen.
+- Proksi orqasida ishlagani uchun `TRUST_PROXY_HTTPS=1`. Buni faqat proksi kiruvchi `X-Forwarded-Proto` headerini o‘zi yozadigan bo‘lsa yoqing.
+- `DB_ENGINE=postgresql` va `DB_NAME`/`DB_USER`/`DB_PASSWORD`/`DB_HOST`/`DB_PORT` — o‘z serveringizdagi bazaga.
+- `TELEGRAM_APP_URL=https://tasks.example.uz`, `DJANGO_LOG_FILE=/app/logs/topshiriq.log`.
+- MinIO, OpenAI, Muxlisa, VAPID va Telegram kalitlari `.env.production`da tayyor; almashtirilsa, `S3_ACCESS_KEY`/`S3_SECRET_KEY` compose orqali MinIO’ning root hisobi bo‘lib ham ishlatiladi.
+
+### 2. Stack’ni ko‘taring
+
+```bash
+docker compose up -d --build
+docker compose ps
+curl -fsS http://127.0.0.1:8000/healthz/
+```
+
+### 3. Xodimlar ro‘yxati va Telegram
+
+```bash
+docker compose exec web python manage.py seed_staff --dry-run
+docker compose exec web python manage.py seed_staff
+docker compose exec web python manage.py createsuperuser
+docker compose exec web python manage.py telegram_setup
+```
+
+`seed_staff` bo‘linmalar va 26 xodim hisobini yaratadi, boshlang‘ich parol **`12345678`** (xodimlar birinchi kirishdan keyin almashtirsin). `telegram_setup` webhook, menyu tugmasi va `/start` buyrug‘ini sozlaydi — bundan oldin domen HTTPS bilan ochilayotgan bo‘lsin.
+
+### 4. Oldiga HTTPS reverse proxy qo‘ying
+
+`web` faqat `127.0.0.1:8000` da turadi; saytni Nginx yoki Caddy ochadi. Talablar:
+
+- Sertifikat va domen o‘sha yerda; `X-Forwarded-For` va `X-Forwarded-Proto` uzatilsin.
+- `/voice/live-stream/` uchun WebSocket Upgrade, sessiya cookie va `Origin` header o‘tsin.
+- `/voice/realtime-speak/` javobi buferlanmasin; ulanish timeouti kamida 180 soniya.
+- Telegram Web ilovani iframe ichida ochgani uchun `.env` da `TELEGRAM_EMBED=1` — u sessiya cookie’sini `SameSite=None; Secure` qiladi.
+
+### 5. Kundalik ishlar
+
+```bash
+docker compose logs -f web            # loglar; ./logs papkasiga ham yoziladi
+git pull && docker compose up -d --build   # yangilash
+```
+
+- Fayllar `minio-data`, yuklangan `media` esa `media` volume’ida qoladi; baza sizning serveringizda. Zaxira nusxa ikkalasidan ham olinadi, bittasi ikkinchisini almashtirmaydi.
+- MinIO paneli `127.0.0.1:9001` da — unga SSH tunnel yoki proksi orqali kiring. Bucket yopiq: faylni brauzerga ilovaning o‘zi uzatadi, shuning uchun har bir yuklab olish topshiriqni ko‘rish huquqidan o‘tadi.
+- `S3_ENDPOINT_URL` bo‘sh qoldirilsa, fayllar `media` volume’ida saqlanadi va MinIO kerak bo‘lmaydi.
+- Monitoring: `GET /healthz/` sessiyasiz ishlaydi va baza yo‘qolsa `503` qaytaradi.
+- Parol taxmin qilishga qarshi himoya: bitta login uchun 5 daqiqada 10 xato urinishdan keyin bloklanadi. Hisoblagich keshda, shuning uchun ilova bir nechta jarayonga bo‘linsa umumiy kesh (Redis) sozlansin.
+- Loglarda ovoz, push, Telegram va agent xatolari ko‘rinadi; parol, token va topshiriq matni yozilmaydi (`DJANGO_LOG_LEVEL=WARNING` bilan qisqartiriladi).
+
+Image `python:3.13-slim` asosida quriladi va ovoz tekshiruvi uchun ishlatilgan og‘ir `sherpa-onnx` paketini ham o‘z ichiga oladi (u hozir hech qaysi URL bilan ulanmagan). Image hajmi muhim bo‘lsa, o‘sha bog‘liqlikni olib tashlash mumkin.
+
+## Production: Dockersiz joylash
+
+1. `requirements-production.txt`ni o‘rnating; PostgreSQL bazasi va alohida foydalanuvchi yarating.
+2. `.env.production`dan `.env` yarating va yuqoridagi qiymatlarni to‘ldiring.
+3. `python manage.py migrate` va `python manage.py collectstatic --noinput`.
+4. `python manage.py createsuperuser`; admin orqali rais hisobi yarating.
+5. `python serve.py --host 127.0.0.1 --port 8000 --proxy`ni servis sifatida ishlating, oldiga yuqoridagi talablar bilan HTTPS reverse proxy qo‘ying.
+6. `python manage.py seed_staff` bilan xodimlar ro‘yxatini yarating.
+7. Fayllar uchun MinIO/S3: `S3_ENDPOINT_URL`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET`. Bucket yopiq bo‘lsin.
+8. Bildirishnomalar uchun `manage.py push_keys` natijasini `.env` ga qo‘ying. Ular **haqiqiy sertifikatli domen** talab qiladi; obuna manzilga bog‘lanadi, domen o‘zgarsa xodimlar qaytadan yoqadi.
+9. `send_reminders` uchun scheduler — har soat. Windows misoli (administrator sifatida, bitta qator):
+
+```powershell
+schtasks /create /tn "Topshiriq eslatmalari" /sc hourly /ru SYSTEM /tr "'D:\Example\TASK-MANAGEMENT\.venv\Scripts\python.exe' 'D:\Example\TASK-MANAGEMENT\manage.py' send_reminders"
+```
+
+10. `python manage.py check --deploy` toza bo‘lsin. Loglar uchun `DJANGO_LOG_FILE` (5 MB × 5 fayl).
+
+Production HTTPS cookie/redirect/HSTS sozlamalari `DEBUG=0`da yoqiladi. Static fayllarni WhiteNoise beradi. PostgreSQL va haqiqiy HTTPS serverga deploy lokal tekshiruv doirasiga kirmaydi.
+
 ## Arxitektura
 
 - Bitta Django ilova, serverda render qilinadigan HTML, mahalliy CSS va kichik JavaScript.
@@ -181,7 +276,7 @@ Bot xabarlari: yangi topshiriq, muddat eslatmalari va boshqa xabarnomalar botga 
 
 Talab: **haqiqiy HTTPS sertifikati**. Brauzer o‘z-o‘zidan imzolangan sertifikatli saytda service worker’ni bloklaydi, shuning uchun `mkcert` bilan yaratilgan va har bir kompyuterga ishonchli qilib o‘rnatilgan sertifikat yoki domen + Let’s Encrypt kerak. Bildirishnomada faqat sarlavha, topshiriq kodi va nomi bo‘ladi; matn va izohlar yuborilmaydi. Xodim ruxsatni brauzerdan istalgan payt qaytarib olishi mumkin, yaroqsiz obuna esa birinchi urinishda o‘chiriladi.
 
-Bu buyruq muddat yaqinlashishi, buzilishi, zanjir bo‘yicha eskalatsiya va eskirgan muddatsiz vazifalar uchun **ilova ichidagi** xabarlarni yaratadi (obuna bo‘lgan brauzerlarga push ham yuboriladi). Bir kunda takroriy ishga tushirish xabarlarni ko‘paytirmaydi. Doimiy ishlash uchun server scheduler/Windows Task Scheduler’da har soat ishga tushiring. Tizimda tashqi email/SMS/Telegram integratsiyasi yo‘q.
+Bu buyruq muddat yaqinlashishi, buzilishi, zanjir bo‘yicha eskalatsiya va eskirgan muddatsiz vazifalar uchun **ilova ichidagi** xabarlarni yaratadi (obuna bo‘lgan brauzerlarga push ham yuboriladi). Bir kunda takroriy ishga tushirish xabarlarni ko‘paytirmaydi. Doimiy ishlash uchun server scheduler/Windows Task Scheduler’da har soat ishga tushiring; Docker stack’ida buni `reminders` konteyneri bajaradi. Xabar kanallari: ilova ichidagi xabarnomalar, Web Push va Telegram boti. Email/SMS integratsiyasi yo‘q.
 
 ## Tekshirish
 
@@ -191,54 +286,6 @@ Bu buyruq muddat yaqinlashishi, buzilishi, zanjir bo‘yicha eskalatsiya va eski
 .\.venv\Scripts\python.exe manage.py makemigrations --check --dry-run
 ```
 
-## Docker orqali joylash
-
-Uchta konteyner: `db` (PostgreSQL), `web` (ilova) va `reminders` (muddat eslatmalari sikli).
-
-```bash
-cp .env.production .env      # bo'sh qiymatlarni to'ldiring
-docker compose up -d --build
-docker compose exec web python manage.py seed_staff
-docker compose exec web python manage.py telegram_setup
-```
-
-- Konteyner ishga tushganda `migrate` va `collectstatic` o'zi bajariladi; ilova `serve.py --proxy` bilan ishlaydi.
-- `web` faqat `127.0.0.1:8000` da ochiladi. Oldida HTTPS reverse proxy (Nginx/Caddy) bo'lishi shart: sertifikat, domen va WebSocket (`/voice/live-stream/`) o'tkazish o'sha yerda sozlanadi.
-- PostgreSQL stack ichida emas: `.env` dagi `DB_*` qiymatlari o'z serveringizdagi bazaga ishora qiladi.
-- Fayllar MinIO'da saqlanadi (`minio` xizmati). U faqat ichki tarmoqda ishlaydi: brauzerga faylni ilovaning o'zi uzatadi, shuning uchun har bir yuklab olish topshiriq ko'rish huquqidan o'tadi. Boshqaruv paneli `127.0.0.1:9001` da — unga SSH tunnel yoki proksi orqali kiring.
-- `minio-init` bir martalik konteyner: bucket yo'q bo'lsa yaratadi va uni yopiq (anonim kirishsiz) qilib qo'yadi.
-- `S3_ENDPOINT_URL` bo'sh qoldirilsa, fayllar `media` volume'iga tushadi va MinIO kerak bo'lmaydi. Loglar `./logs` papkasiga chiqadi (`DJANGO_LOG_FILE=/app/logs/topshiriq.log`).
-- Eslatmalar soati: `REMINDER_INTERVAL` (standart 3600 soniya).
-- Holatni tekshirish: `docker compose ps` va `curl -fsS http://127.0.0.1:8000/healthz/`.
-- Yangilash: `git pull && docker compose up -d --build`. Baza `db-data` volume'ida qoladi.
-
-Image `python:3.13-slim` asosida quriladi va ovoz tekshiruvi uchun ishlatiladigan og'ir `sherpa-onnx` paketini ham o'z ichiga oladi (u hozir hech qaysi URLga ulanmagan). Image hajmini kamaytirish kerak bo'lsa, o'sha bog'liqlikni olib tashlash mumkin.
-
-## Serverga joylash (Dockersiz)
-
-1. `requirements-production.txt`ni o‘rnating; PostgreSQL bazasi va alohida foydalanuvchi yarating.
-2. `.env.example`dan `.env` yarating. `DJANGO_DEBUG=0`, `DJANGO_SECRET_KEY`, domen uchun `DJANGO_ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS` va DB qiymatlarini sozlang.
-3. `python manage.py migrate` va `python manage.py collectstatic --noinput`.
-4. `python manage.py createsuperuser`; admin orqali rais hisobi yarating.
-5. `python serve.py --host 127.0.0.1 --port 8000 --proxy`ni servis sifatida ishlating (`--proxy` proksi bergan `X-Forwarded-For/Proto` sarlavhalariga ishonadi). Oldida HTTPS reverse proxy (Nginx/Caddy/IIS) bo‘lsin. `/voice/live-stream/` uchun WebSocket Upgrade, sessiya cookie va Origin headerlari o‘tsin. `/voice/realtime-speak/` javobini proxy buferlamasin; ulanish timeouti kamida 180 soniya bo‘lsin. `TRUST_PROXY_HTTPS=1`ni faqat proxy kiruvchi `X-Forwarded-Proto` headerini tozalab o‘zi yozsa yoqing.
-6. `python manage.py seed_staff` bilan xodimlar ro‘yxatini yarating (boshlang‘ich parol `12345678`; xodimlar almashtirsin).
-7. Fayllar uchun MinIO/S3: `S3_ENDPOINT_URL`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET`. Bucket yopiq bo‘lsin: fayllarni ilovaning o‘zi uzatadi, saqlagich tashqaridan ochilmasligi kerak.
-8. Bildirishnomalar uchun `manage.py push_keys` natijasini `.env` ga qo‘ying. Ular ishlashi uchun **haqiqiy sertifikatli domen** kerak; obuna va brauzer ruxsati manzilga bog‘lanadi, shuning uchun domen o‘zgarsa xodimlar qaytadan yoqadi.
-9. `send_reminders` uchun scheduler: har soat ishga tushadigan qilib sozlang. Windows misoli (administrator sifatida, bitta qator):
-
-```powershell
-schtasks /create /tn "Topshiriq eslatmalari" /sc hourly /ru SYSTEM /tr "'D:\Example\TASK-MANAGEMENT\.venv\Scripts\python.exe' 'D:\Example\TASK-MANAGEMENT\manage.py' send_reminders"
-```
-
-10. `python manage.py check --deploy` toza bo‘lsin. `CSRF_TRUSTED_ORIGINS` da `*` emas, aniq domenni yozing: `*` faqat lokal tarmoq uchun.
-11. Loglarni yig‘ing: `DJANGO_LOG_FILE=D:\logs\topshiriq.log` (5 MB × 5 fayl) va kerak bo‘lsa `DJANGO_LOG_LEVEL=WARNING`. Log’da ovoz, push, Telegram va agent xatolari ko‘rinadi; parol, token va topshiriq matni yozilmaydi.
-12. Monitoring uchun `GET /healthz/` — sessiyasiz ishlaydi, baza yo‘qolsa `503` qaytaradi. Proksi «healthy» tekshiruvini shunga ulang.
-13. Zaxira nusxa: baza fayli/dumpi va fayl saqlagichi (MinIO bucket yoki `media/`). Ular alohida saqlanadi, bittasi ikkinchisini almashtirmaydi.
-
-Parolni taxmin qilishga qarshi himoya ilovada bor: bitta login uchun 5 daqiqada 10 marta xato urinishdan keyin bloklanadi. Hisoblagich keshda turadi, shuning uchun bir nechta jarayon ishlatilsa, umumiy kesh (masalan Redis) sozlanishi kerak.
-
-Production HTTPS cookie/redirect/HSTS sozlamalari `DEBUG=0`da yoqiladi. Static fayllarni WhiteNoise beradi. PostgreSQL va haqiqiy HTTPS serverga deploy lokal tekshiruv doirasiga kirmaydi.
-
-### Agentning sahifa konteksti
+## Agentning sahifa konteksti
 
 Agent har so‘rovda ruxsatli sahifaning asosiy matni va havolalarini serverdan qayta o‘qiydi: panel, topshiriqlar, tafsilot, xodimlar, struktura, zanjir, tarix, xabarnomalar va yaratish/tahrirlash formalari. Joriy ro‘yxat UI bilan bitta filtr funksiyasidan olinadi. Bitta topshiriq bo‘lsa “joriy sahifadagi topshiriqni och” uni ochadi; ko‘p bo‘lsa haqiqiy nomzodlardan tanlov so‘raladi. Brauzerda saqlanmagan forma qiymatlari yoki parollar modelga yuborilmaydi. Sahifa matni 24 000 belgi bilan chegaralangan; batafsil ma’lumot alohida o‘qish vositalaridan olinadi.

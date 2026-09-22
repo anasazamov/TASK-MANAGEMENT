@@ -245,9 +245,8 @@ def delete_attachment(request, pk, attachment_id):
 def download_attachment(request, pk, attachment_id):
     get_object_or_404(tasks_for(request.user), pk=pk)
     attachment = get_object_or_404(TaskAttachment, pk=attachment_id, task_id=pk)
-    # S3/MinIO links are signed and short-lived; local files stream through Django.
-    if settings.S3_ENDPOINT_URL:
-        return redirect(attachment.file.url)
+    # Always streamed through here, so the object store stays on the private
+    # network and every byte passes the task's permission check.
     return FileResponse(attachment.file.open('rb'), as_attachment=True, filename=attachment.name)
 
 

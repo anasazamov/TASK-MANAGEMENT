@@ -59,7 +59,7 @@ Admin kerak bo‘lsa: `python manage.py createsuperuser`. Oddiy rais hisobi Djan
 - Kotiba: butun tashkilot bo‘yicha topshiriqlar va «Xodimlar» statistikasini ko‘radi hamda **barcha bo‘linmalarga topshiriq beradi** (rais topshiriqlarini rasmiylashtiradi). O‘zi bergan topshiriq bo‘yicha rahbar hisoblanadi: ijroni qabul qiladi, muddat belgilaydi. Boshqa rahbarlar bergan topshiriqlar bo‘yicha qaror qabul qilmaydi; nazoratchi qilib belgilansa, izoh yozadi va hisobot so‘raydi. Xodim va bo‘linma boshqaruvi faqat raisda qoladi.
 - Xodim: faqat o‘z topshiriqlari, izoh, ijro, haftalik hisobot, muddat uzaytirish so‘rovi.
 - Xat rekvizitlari: topshiriqqa xat raqami, sanasi va kimdan kelgani yoziladi; ular topshiriq sahifasida ko‘rinadi.
-- Fayl biriktirish: topshiriqqa 25 MB gacha hujjat (PDF, Word, Excel, rasm, arxiv) biriktiriladi, bittasiga 20 tagacha. Fayllar bazada emas, S3/MinIO’da saqlanadi (`S3_ENDPOINT_URL` sozlansa); havolalar imzolangan va 15 daqiqa amal qiladi. Sozlanmagan bo‘lsa, fayllar serverdagi `media/` papkasida turadi. Faylni topshiriq ishtirokchilari biriktiradi, o‘chirishni esa yuklagan shaxs yoki rahbar bajaradi.
+- Fayl biriktirish: topshiriqqa 25 MB gacha hujjat (PDF, Word, Excel, rasm, arxiv) biriktiriladi, bittasiga 20 tagacha. Fayllar bazada emas, S3/MinIO’da saqlanadi (`S3_ENDPOINT_URL` sozlansa), aks holda serverdagi `media/` papkasida. Yuklab olish har doim ilova orqali o‘tadi, shuning uchun saqlagich tashqi tarmoqqa ochilmaydi va har bir fayl so‘rovi topshiriqni ko‘rish huquqi bilan tekshiriladi. Faylni topshiriq ishtirokchilari biriktiradi, o‘chirishni esa yuklagan shaxs yoki rahbar bajaradi.
 - Nazoratchi: rahbar topshiriqqa nazoratchi belgilaydi. U topshiriqni ko‘radi, izoh yozadi va haftalik hisobot so‘raydi, lekin ijroni qabul qilmaydi, muddat o‘zgartirmaydi va ijro topshirmaydi. Bo‘lim boshlig‘i o‘z bo‘limi xodimini, kotibani yoki devonxonani; rais va devonxona esa istalgan xodimni nazoratchi qila oladi.
 - Faol, kechikkan, muddati yaqin, tasdiq kutilayotgan, muddatsiz va qabul qilingan vazifalar filtrlari; matn va xodim bo‘yicha qidirish.
 - Qo‘shimcha ijrochilar: topshiriqni bergan rahbar (yoki rais) mavjud topshiriqqa xodim qo‘shib, unga aniq ijro qismini biriktiradi. Qo‘shimcha ijrochi topshiriqni ko‘radi, izoh va hisobot yozadi hamda **faqat o‘z qismini** topshiradi; rahbar shu qismni qabul qiladi yoki sabab bilan qaytaradi. Barcha qismlar qabul qilinmaguncha asosiy ijrochi topshiriq ijrosini topshira olmaydi. Xodim faqat yangi topshiriq berish doirasidan tanlanadi; asosiy ijrochi, topshiriq bergan shaxs va rais qo‘shilmaydi.
@@ -191,7 +191,30 @@ Bu buyruq muddat yaqinlashishi, buzilishi, zanjir bo‘yicha eskalatsiya va eski
 .\.venv\Scripts\python.exe manage.py makemigrations --check --dry-run
 ```
 
-## Serverga joylash
+## Docker orqali joylash
+
+Uchta konteyner: `db` (PostgreSQL), `web` (ilova) va `reminders` (muddat eslatmalari sikli).
+
+```bash
+cp .env.production .env      # bo'sh qiymatlarni to'ldiring
+docker compose up -d --build
+docker compose exec web python manage.py seed_staff
+docker compose exec web python manage.py telegram_setup
+```
+
+- Konteyner ishga tushganda `migrate` va `collectstatic` o'zi bajariladi; ilova `serve.py --proxy` bilan ishlaydi.
+- `web` faqat `127.0.0.1:8000` da ochiladi. Oldida HTTPS reverse proxy (Nginx/Caddy) bo'lishi shart: sertifikat, domen va WebSocket (`/voice/live-stream/`) o'tkazish o'sha yerda sozlanadi.
+- PostgreSQL stack ichida emas: `.env` dagi `DB_*` qiymatlari o'z serveringizdagi bazaga ishora qiladi.
+- Fayllar MinIO'da saqlanadi (`minio` xizmati). U faqat ichki tarmoqda ishlaydi: brauzerga faylni ilovaning o'zi uzatadi, shuning uchun har bir yuklab olish topshiriq ko'rish huquqidan o'tadi. Boshqaruv paneli `127.0.0.1:9001` da — unga SSH tunnel yoki proksi orqali kiring.
+- `minio-init` bir martalik konteyner: bucket yo'q bo'lsa yaratadi va uni yopiq (anonim kirishsiz) qilib qo'yadi.
+- `S3_ENDPOINT_URL` bo'sh qoldirilsa, fayllar `media` volume'iga tushadi va MinIO kerak bo'lmaydi. Loglar `./logs` papkasiga chiqadi (`DJANGO_LOG_FILE=/app/logs/topshiriq.log`).
+- Eslatmalar soati: `REMINDER_INTERVAL` (standart 3600 soniya).
+- Holatni tekshirish: `docker compose ps` va `curl -fsS http://127.0.0.1:8000/healthz/`.
+- Yangilash: `git pull && docker compose up -d --build`. Baza `db-data` volume'ida qoladi.
+
+Image `python:3.13-slim` asosida quriladi va ovoz tekshiruvi uchun ishlatiladigan og'ir `sherpa-onnx` paketini ham o'z ichiga oladi (u hozir hech qaysi URLga ulanmagan). Image hajmini kamaytirish kerak bo'lsa, o'sha bog'liqlikni olib tashlash mumkin.
+
+## Serverga joylash (Dockersiz)
 
 1. `requirements-production.txt`ni o‘rnating; PostgreSQL bazasi va alohida foydalanuvchi yarating.
 2. `.env.example`dan `.env` yarating. `DJANGO_DEBUG=0`, `DJANGO_SECRET_KEY`, domen uchun `DJANGO_ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS` va DB qiymatlarini sozlang.
@@ -199,7 +222,7 @@ Bu buyruq muddat yaqinlashishi, buzilishi, zanjir bo‘yicha eskalatsiya va eski
 4. `python manage.py createsuperuser`; admin orqali rais hisobi yarating.
 5. `python serve.py --host 127.0.0.1 --port 8000 --proxy`ni servis sifatida ishlating (`--proxy` proksi bergan `X-Forwarded-For/Proto` sarlavhalariga ishonadi). Oldida HTTPS reverse proxy (Nginx/Caddy/IIS) bo‘lsin. `/voice/live-stream/` uchun WebSocket Upgrade, sessiya cookie va Origin headerlari o‘tsin. `/voice/realtime-speak/` javobini proxy buferlamasin; ulanish timeouti kamida 180 soniya bo‘lsin. `TRUST_PROXY_HTTPS=1`ni faqat proxy kiruvchi `X-Forwarded-Proto` headerini tozalab o‘zi yozsa yoqing.
 6. `python manage.py seed_staff` bilan xodimlar ro‘yxatini yarating (boshlang‘ich parol `12345678`; xodimlar almashtirsin).
-7. Fayllar uchun MinIO/S3: `S3_ENDPOINT_URL`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET`. Bucket yopiq bo‘lsin — havolalar imzolanadi.
+7. Fayllar uchun MinIO/S3: `S3_ENDPOINT_URL`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET`. Bucket yopiq bo‘lsin: fayllarni ilovaning o‘zi uzatadi, saqlagich tashqaridan ochilmasligi kerak.
 8. Bildirishnomalar uchun `manage.py push_keys` natijasini `.env` ga qo‘ying. Ular ishlashi uchun **haqiqiy sertifikatli domen** kerak; obuna va brauzer ruxsati manzilga bog‘lanadi, shuning uchun domen o‘zgarsa xodimlar qaytadan yoqadi.
 9. `send_reminders` uchun scheduler: har soat ishga tushadigan qilib sozlang. Windows misoli (administrator sifatida, bitta qator):
 

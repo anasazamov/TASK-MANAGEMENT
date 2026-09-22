@@ -110,14 +110,17 @@ if __name__ == '__main__':
                             proxy_headers=args.proxy, forwarded_allow_ips='*' if args.proxy else None,
                             access_log=False, **ssl)
 
-    def ignore_client_resets(loop, context):
-        # Windows Proactor logs a traceback whenever a browser drops a socket abruptly; it is harmless.
-        if isinstance(context.get('exception'), ConnectionResetError):
+    def ignore_client_drops(loop, context):
+        # A browser that navigates away mid-response leaves two harmless traces:
+        # Windows Proactor resets the socket, and the cancelled request task
+        # reports a CancelledError nobody is left to await. Neither is a fault
+        # of the application, and both would otherwise be logged as errors.
+        if isinstance(context.get('exception'), (ConnectionResetError, asyncio.CancelledError)):
             return
         loop.default_exception_handler(context)
 
     async def main():
-        asyncio.get_running_loop().set_exception_handler(ignore_client_resets)
+        asyncio.get_running_loop().set_exception_handler(ignore_client_drops)
         if secure and port == 443:
             try:
                 await asyncio.start_server(http_redirect(port), args.host, 80)

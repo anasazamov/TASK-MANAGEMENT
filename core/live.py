@@ -60,8 +60,10 @@ async def transcribe_utterance(pcm):
     except VoiceError as error:
         logger.warning('STT result code=%s', protocol_code(error.code))
         return stt_error_for(error)
-    except (httpx.RequestError, ValueError, TimeoutError):
-        logger.warning('STT result code=%s', 'service_unavailable')
+    except (httpx.RequestError, ValueError, TimeoutError) as error:
+        # The reason separates an unreachable provider from a response we failed
+        # to read; both reach the user as the same 'try again' message.
+        logger.warning('STT result code=%s reason=%s', 'service_unavailable', type(error).__name__)
         return stt_error('service_unavailable')
 
 

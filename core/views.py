@@ -1,6 +1,7 @@
 import json
 from datetime import timedelta
 
+from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login, logout, update_session_auth_hash
@@ -241,13 +242,32 @@ def delete_attachment(request, pk, attachment_id):
     return redirect('task_detail', pk=pk)
 
 
+def streamed(response):
+    """Hand the ASGI loop an async iterator over the file.
+
+    Django reads a FileResponse chunk by chunk inside the event loop, so a
+    25 MB attachment coming from MinIO would stall every other request — and
+    Django warns about exactly that. Reading in a worker thread keeps the loop
+    free while the file is served.
+    """
+    chunks = iter(response.streaming_content)
+    read = sync_to_async(lambda: next(chunks, None), thread_sensitive=False)
+
+    async def body():
+        while (chunk := await read()) is not None:
+            yield chunk
+
+    response.streaming_content = body()
+    return response
+
+
 @login_required
 def download_attachment(request, pk, attachment_id):
     get_object_or_404(tasks_for(request.user), pk=pk)
     attachment = get_object_or_404(TaskAttachment, pk=attachment_id, task_id=pk)
     # Always streamed through here, so the object store stays on the private
     # network and every byte passes the task's permission check.
-    return FileResponse(attachment.file.open('rb'), as_attachment=True, filename=attachment.name)
+    return streamed(FileResponse(attachment.file.open('rb'), as_attachment=True, filename=attachment.name))
 
 
 @login_required
@@ -387,7 +407,7 @@ def telegram_login(request):
 def push_worker(request):
     # Served from the site root so the worker may cover every page, not /static/.
     path = finders.find('js/push-worker.js')
-    response = FileResponse(open(path, 'rb'), content_type='text/javascript')
+    response = streamed(FileResponse(open(path, 'rb'), content_type='text/javascript'))
     response['Service-Worker-Allowed'] = '/'
     return response
 

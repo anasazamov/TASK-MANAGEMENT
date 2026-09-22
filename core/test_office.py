@@ -2,6 +2,7 @@ import shutil
 import tempfile
 from datetime import date, timedelta
 
+from asgiref.sync import async_to_sync
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
@@ -10,6 +11,11 @@ from django.utils import timezone
 from .models import Department, Task, TaskAttachment, User
 from .permissions import assignees_for, controllers_for
 from .services import add_attachment, create_task, remove_attachment
+
+
+async def collect(response):
+    return b''.join([chunk async for chunk in response])
+
 
 MEDIA = tempfile.mkdtemp()
 
@@ -133,7 +139,9 @@ class OfficeAndSecretaryTests(TestCase):
         page = self.client.get(self.task.get_absolute_url())
         self.assertContains(page, 'xat.pdf')
         download = self.client.get(f'/tasks/{self.task.pk}/files/{attachment.pk}/')
-        self.assertEqual(b''.join(download.streaming_content), b'%PDF-1.4 test')
+        # Served asynchronously: reading the file must not happen in the event loop.
+        self.assertTrue(download.is_async)
+        self.assertEqual(async_to_sync(collect)(download), b'%PDF-1.4 test')
         self.client.force_login(self.other_head)
         self.assertEqual(self.client.get(f'/tasks/{self.task.pk}/files/{attachment.pk}/').status_code, 404)
         with self.assertRaises(PermissionDenied):

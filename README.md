@@ -1,7 +1,5 @@
 # Topshiriq nazorati
 
-Samarkand Invest Company topshiriqlarini boshqarish uchun Django monolit. Claude Design’dagi **Topshiriqlar — sodda** varianti asosida. UI o‘zbek tilida, muddatlar Asia/Tashkent vaqtida.
-
 Quyida avval production’ga joylash, keyin tizimning o‘zi haqida ma’lumot beriladi. Lokal ishlab chiqish uchun «Lokal ishga tushirish» bo‘limiga o‘ting.
 
 ## Production: Docker orqali joylash

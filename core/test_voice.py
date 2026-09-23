@@ -259,10 +259,21 @@ class VoiceTests(TestCase):
         self.assertEqual(response.json()['error'], 'tts_response')
 
     def test_speech_excerpt_obeys_provider_character_limit(self):
+        # Measured against the provider: 512 is accepted, 513 comes back as 400.
+        self.assertEqual(muxlisa.MAX_TTS_CHARACTERS, 512)
         for text in ['O‘zbekcha savol. ' * 200, '界' * 1001, 'x' * 1001]:
             result = muxlisa.speech_excerpt(text)
             self.assertLessEqual(len(result), muxlisa.MAX_TTS_CHARACTERS)
             self.assertTrue(result.endswith('ekrandan o‘qing.'))
+
+    def test_a_history_answer_stays_within_the_limit_once_it_is_spoken(self):
+        # Dates and times are read out as words, so a reply that is short on
+        # screen can be half as long again by the time it reaches the provider.
+        answer = 'T-101 — Test. So‘nggi harakatlar:\n' + '\n'.join(
+            f'{n}. 23.09.2026 soat 13:3{n} — Izoh. Yozuv: ish qabul qilinmadi' for n in range(1, 6))
+        spoken = spoken_text(answer)
+        self.assertGreater(len(spoken), muxlisa.MAX_TTS_CHARACTERS)
+        self.assertLessEqual(len(muxlisa.speech_excerpt(spoken)), muxlisa.MAX_TTS_CHARACTERS)
 
     def test_speech_copy_expands_task_codes_times_and_omits_markdown(self):
         text = '**T-118** — [A’zamov Aziz](/tasks/18/). Soat 18:30 gacha.'

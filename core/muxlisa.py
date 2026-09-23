@@ -18,7 +18,10 @@ STT_PATH = '/api/v2/stt'
 TTS_PATH = '/api/v2/tts'
 MAX_STT_BYTES = 5 * 1024 * 1024
 MAX_STT_SECONDS = 60
-MAX_TTS_CHARACTERS = 1000
+# The provider counts the spoken copy, not the screen text, and refuses 513
+# characters with a 400. Dates and numbers are read out as words, so a reply
+# that looks short on screen can be twice this long by the time it is spoken.
+MAX_TTS_CHARACTERS = 512
 AUDIO_TYPES = {'.webm': 'audio/webm', '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.m4a': 'audio/x-m4a',
                '.aac': 'audio/aac', '.ogg': 'audio/ogg', '.flac': 'audio/flac', '.mp4': 'audio/mp4'}
 

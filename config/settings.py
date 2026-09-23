@@ -1,3 +1,4 @@
+import mimetypes
 import os
 import secrets
 from pathlib import Path
@@ -68,6 +69,12 @@ LANGUAGE_CODE = 'uz'
 TIME_ZONE = 'Asia/Tashkent'
 USE_I18N = True
 USE_TZ = True
+# A Linux image without /etc/mime.types serves these as application/octet-stream,
+# and the browser then refuses the module script and the wasm binary that the
+# local speech filter is built from. Registered before WhiteNoise reads the files.
+mimetypes.add_type('text/javascript', '.mjs', True)
+mimetypes.add_type('application/wasm', '.wasm', True)
+
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']

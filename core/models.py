@@ -290,7 +290,9 @@ class Event(models.Model):
         ALERT = 'alert', 'Ogohlantirish'
         PART = 'part', 'Ijro qismi'
 
-    task = models.ForeignKey(Task, on_delete=models.PROTECT, related_name='events')
+    # History follows the task it describes: nothing may delete an event on its
+    # own, but a task removed in the admin takes its own record with it.
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='events')
     actor = models.ForeignKey(User, null=True, on_delete=models.PROTECT, related_name='+')
     kind = models.CharField(max_length=16, choices=Kind.choices)
     body = models.TextField()

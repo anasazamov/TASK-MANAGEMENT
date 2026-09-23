@@ -22,6 +22,18 @@ class ReadOnly:
         return False
 
 
+class TaskOwned(ReadOnly):
+    """Removable only along with the task it belongs to, never on its own.
+
+    Deleting a task asks Django whether everything hanging off it may go too,
+    and that question is answered yes only while the task's own delete page or
+    changelist is the view being served.
+    """
+    def has_delete_permission(self, request, obj=None):
+        match = request.resolver_match
+        return bool(match and match.url_name in ('core_task_delete', 'core_task_changelist'))
+
+
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
     fieldsets = UserAdmin.fieldsets + (
@@ -56,22 +68,28 @@ class TaskAdmin(ReadOnly, admin.ModelAdmin):
     search_fields = ['title', 'description', 'letter_number', 'assignee__full_name']
     date_hierarchy = 'created_at'
 
+    def has_delete_permission(self, request, obj=None):
+        # A task entered by mistake can be removed here; its history, comments,
+        # deadline requests, participants and notifications go with it. A task
+        # that others were built on top of is still refused: delete those first.
+        return True
+
 
 @admin.register(TaskParticipant)
-class TaskParticipantAdmin(ReadOnly, admin.ModelAdmin):
+class TaskParticipantAdmin(TaskOwned, admin.ModelAdmin):
     list_display = ['task', 'user', 'kind', 'part', 'status', 'created_at']
     list_filter = ['kind', 'status']
     search_fields = ['user__full_name', 'part']
 
 
 @admin.register(TaskAttachment)
-class TaskAttachmentAdmin(ReadOnly, admin.ModelAdmin):
+class TaskAttachmentAdmin(TaskOwned, admin.ModelAdmin):
     list_display = ['name', 'task', 'size_label', 'uploaded_by', 'created_at']
     search_fields = ['name', 'task__title']
 
 
 @admin.register(Event, DeadlineRequest, Notification)
-class WorkflowAdmin(ReadOnly, admin.ModelAdmin):
+class WorkflowAdmin(TaskOwned, admin.ModelAdmin):
     pass
 
 

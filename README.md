@@ -266,6 +266,8 @@ Buyruq webhookni, Telegramdagi «Topshiriqlar» menyu tugmasini va `/start` buyr
 
 Telegram SDK’sining o‘zi har bir almashuvni konsolga yozadi (`[Telegram.WebView] > postEvent`) va uni o‘chirish uchun sozlama yo‘q, shuning uchun ilova shu yozuvlarnigina filtrlaydi; SDK’ning haqiqiy ogohlantirishlari (`[Telegram.WebApp]`) qoladi. Kerak bo‘lsa, konsolda `localStorage['sic-telegram-log'] = '1'` ularni qaytaradi.
 
+Hisobi bog‘lanmagan xodim ilovani ochsa, «Raqamni ulash» tugmasi chiqadi: Telegram raqamni ilova ichida so‘raydi (Bot API 6.9+), raqam botga yetgach tizim o‘zi kirib oladi — chatga o‘tish shart emas. Eski klientlarda esa «Botni ochish» tugmasi chatni ochadi (6.1+ da `openTelegramLink`, undan eskisida oddiy o‘tish). Mini App oynasi `target="_blank"` havolani ochmaydi, shuning uchun havola shu yo‘l bilan beriladi.
+
 Xavfsizlik: Mini App ma’lumoti bot tokeni bilan imzolanadi va serverda tekshiriladi; imzo mos kelmasa yoki 24 soatdan eski bo‘lsa, kirish rad etiladi. Faqat foydalanuvchining **o‘z** kontakti qabul qilinadi, boshqaning raqami yuborilsa bog‘lanmaydi. Ro‘yxatda yo‘q raqam hech qachon hisob ochmaydi.
 
 Bot xabarlari: yangi topshiriq, muddat eslatmalari va boshqa xabarnomalar botga ham yuboriladi — xabarda sarlavha, topshiriq kodi va nomi hamda «Ochish» tugmasi bo‘ladi.

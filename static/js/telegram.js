@@ -37,36 +37,71 @@
     try { if (sessionStorage.getItem(flag)) return; sessionStorage.setItem(flag, '1'); } catch (_) { return; }
   }
 
-  async function signIn() {
+  const note = document.querySelector('[data-telegram-note]');
+  const say = text => { if (note) note.textContent = text; };
+  const supports = version => Boolean(app.isVersionAtLeast?.(version));
+
+  // Every one of these leaves the Mini App, and each is refused by some client,
+  // silently: the SDK only logs that the method is not supported. So the last
+  // step is a plain navigation, which every client follows.
+  function openBot(url) {
+    if (app.openTelegramLink && supports('6.1')) { app.openTelegramLink(url); return; }
+    location.href = url;
+  }
+
+  async function attempt() {
     const response = await fetch(config.dataset.loginUrl, {method: 'POST', credentials: 'same-origin',
       headers: {'Content-Type': 'application/json'}, body: JSON.stringify({init_data: app.initData})});
-    const data = await response.json().catch(() => ({}));
-    if (response.ok) {
-      if (data.switched) app.showAlert?.(`${data.name} sifatida kirildi.`);
-      location.replace(config.dataset.homeUrl);
+    return {ok: response.ok, data: await response.json().catch(() => ({}))};
+  }
+
+  function done(data) {
+    if (data.switched) app.showAlert?.(`${data.name} sifatida kirildi.`);
+    location.replace(config.dataset.homeUrl);
+  }
+
+  // Newer clients can hand over the phone number without leaving the app: the
+  // number goes to the bot as a contact message, which links the account, and
+  // the sign-in is retried while that update travels.
+  async function shareNumber(button) {
+    button.disabled = true;
+    const granted = await new Promise(resolve => {
+      try { app.requestContact(ok => resolve(Boolean(ok))); } catch (_) { resolve(false); }
+    });
+    if (!granted) {
+      button.disabled = false;
+      say('Raqam ulashilmadi. Qayta urinib ko‘ring yoki botni oching.');
       return;
     }
-    const note = document.querySelector('[data-telegram-note]');
-    if (note) note.textContent = data.message || 'Telegram orqali kirib bo‘lmadi.';
-    if (data.error === 'not_linked' && data.bot) {
-      const link = document.querySelector('[data-telegram-bot]');
-      if (link) {
-        // ?start= makes the chat open with a START button, so one tap reaches us.
-        const url = `https://t.me/${String(data.bot).replace(/^@/, '')}?start=login`;
-        link.href = url;
-        link.hidden = false;
-        // A Mini App cannot open a t.me address in a tab of its own; the client
-        // has to be asked to switch to the chat, or the button does nothing.
-        link.addEventListener('click', (event) => {
-          if (!app.openTelegramLink) return;
-          event.preventDefault();
-          app.openTelegramLink(url);
-        });
-      }
+    say('Raqam yuborildi, hisob tekshirilmoqda…');
+    for (let tries = 0; tries < 5; tries++) {
+      await new Promise(resolve => setTimeout(resolve, 1200));
+      const {ok, data} = await attempt().catch(() => ({ok: false, data: {}}));
+      if (ok) { done(data); return; }
     }
+    button.disabled = false;
+    say('Raqam hali bog‘lanmadi. Ro‘yxatda shu raqam borligini rahbaringizdan so‘rang.');
   }
-  signIn().catch(() => {
-    const note = document.querySelector('[data-telegram-note]');
-    if (note) note.textContent = 'Server bilan aloqa yo‘q. Internetni tekshirib qayta oching.';
-  });
+
+  async function signIn() {
+    const {ok, data} = await attempt();
+    if (ok) { done(data); return; }
+    say(data.message || 'Telegram orqali kirib bo‘lmadi.');
+    if (data.error !== 'not_linked' || !data.bot) return;
+    const share = document.querySelector('[data-telegram-contact]');
+    if (share && app.requestContact && supports('6.9')) {
+      share.hidden = false;
+      share.addEventListener('click', () => shareNumber(share));
+    }
+    const link = document.querySelector('[data-telegram-bot]');
+    if (!link) return;
+    // ?start= makes the chat open with a START button, so one tap reaches us.
+    const url = `https://t.me/${String(data.bot).replace(/^@/, '')}?start=login`;
+    link.href = url;
+    link.hidden = false;
+    // Opening a tab of its own is what a Mini App webview refuses to do.
+    link.removeAttribute('target');
+    link.addEventListener('click', event => { event.preventDefault(); openBot(url); });
+  }
+  signIn().catch(() => say('Server bilan aloqa yo‘q. Internetni tekshirib qayta oching.'));
 })();

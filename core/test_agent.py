@@ -151,9 +151,31 @@ class AgentTests(AgentTestBase):
     def test_negative_and_write_commands_are_not_navigation_shortcuts(self):
         from . import navigation_intent
         for command in ['Boshqaruv panelini ochma', 'Muddat so‘rovini tasdiqla',
-                        'Topshiriqni yarat va och']:
-            self.assertIsNone(navigation_intent.page_target(command))
-            self.assertFalse(navigation_intent.read_only(command))
+                        'Topshiriqni yarat va och', 'Xodimga topshiriq ber', 'Yangi xodim yarat',
+                        'Xalimovni och', 'Xodimlar sahifasidagi topshiriqni och']:
+            with self.subTest(command=command):
+                self.assertIsNone(navigation_intent.page_target(command))
+
+    def test_a_page_is_reached_however_the_person_names_it(self):
+        # Whatever misses here goes to the model, which has answered a page
+        # request with a task tool: "Topshiriq topilmadi yoki ... huquqingiz yo‘q."
+        from . import navigation_intent
+        for command, page in [
+                ('Xodimlar sahifasini ochib ko‘rsat.', 'employees'),
+                ('Xodimlar ro‘yxatini ochib ko‘rsat', 'employees'),
+                ('Xodimlar bo‘limini och', 'employees'),
+                ('Xodimlar statistikasini ko‘rsat', 'employees'),
+                ('Xodimlar sahifasiga o‘t', 'employees'),
+                ('Tuzilmani ko‘rsat', 'structure'),
+                ('Struktura bo‘limini och', 'structure'),
+                ('Bildirishnomalarni ko‘rsat', 'notifications'),
+                ('Tarixni ko‘rsat', 'timeline'),
+                ('Nazorat zanjiriga o‘t', 'chains'),
+                ('Agent sahifalarini och', 'generated_pages'),
+                ('Boshqaruv paneliga o‘t', 'dashboard')]:
+            with self.subTest(command=command):
+                self.assertEqual(navigation_intent.page_target(command), page)
+                self.assertTrue(navigation_intent.read_only(command))
 
     @override_settings(OPENAI_API_KEY='')
     def test_navigation_works_without_llm_and_preserves_conversation(self):

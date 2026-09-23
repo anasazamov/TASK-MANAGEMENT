@@ -16,7 +16,7 @@ from django.core.cache import cache
 from django.http import HttpRequest
 import httpx
 
-from . import muxlisa
+from . import muxlisa, typesafe
 from .voice_errors import VoiceError
 
 logger = logging.getLogger(__name__)
@@ -105,7 +105,12 @@ async def receive_frame(receive, timeout=40):
 
 async def verified_recognition(identity, pcm, send):
     await send({'type': 'websocket.send', 'text': json.dumps({'event': 'recognizing'})})
-    return await transcribe_utterance(pcm)
+    result = await transcribe_utterance(pcm)
+    # The microphone stays open between commands, so whatever is said nearby is
+    # transcribed too. A judgment decides whether the sentence was meant for us.
+    if result.get('event') == 'final' and not await typesafe.addressed_to_us(result.get('text', '')):
+        return {'event': 'ignored', 'message': 'Bu gap tizimga aytilmagan deb hisoblandi. Tinglashda davom etyapman.'}
+    return result
 
 
 async def relay(scope, receive, send):

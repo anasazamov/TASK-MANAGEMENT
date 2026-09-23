@@ -13,8 +13,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from .forms import TaskForm
 from .models import AgentProposal, Event, Task, User
 from .permissions import assignees_for, can_control, can_delegate, can_manage
-from .person_search import find_people
-from .person_search import words, variants
+from . import typesafe
+from .person_search import find_people, words, variants
 from . import navigation_intent
 from .services import create_task, require, task_action
 
@@ -501,6 +501,12 @@ def confirm(user, conversation, proposal_id, cancel=False):
     return result
 
 
+def last_command(conversation):
+    """What the person actually said, for judgments that need the whole request."""
+    messages = getattr(conversation, 'messages', None) or []
+    return next((m.get('content', '') for m in reversed(messages) if m.get('role') == 'user'), '')
+
+
 def execute(user, conversation, name, raw, references):
     if name not in TOOLS:
         raise ValidationError('Bunday agent amali mavjud emas.')
@@ -539,6 +545,13 @@ def execute(user, conversation, name, raw, references):
     if name == 'list_people':
         eligible = set(assignees_for(user).values_list('pk', flat=True))
         result, matching = find_people(people(user).select_related('department').order_by('full_name', 'pk'), args.query)
+        if matching['needs_clarification']:
+            # Namesakes are the usual reason the assistant stops to ask. When the
+            # command itself settles it, the answer stands in for the question.
+            chosen = typesafe.choose_person(last_command(conversation), user, result)
+            picked = next((p for p in result if p.pk == chosen), None)
+            if picked:
+                result, matching = [picked], {**matching, 'needs_clarification': False, 'resolved': 'judgment'}
         return {**matching, 'people': [{'id': p.pk, 'name': p.full_name, 'job_title': p.job_title,
                            'department': p.department.name if p.department else '', 'can_assign': p.pk in eligible} for p in result]}
     if name == 'navigate':

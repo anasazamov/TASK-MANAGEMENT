@@ -103,8 +103,10 @@ class SpeechStreamTests(SimpleTestCase):
         async_to_sync(run)()
 
 
+# These cover the speech relay itself; the judgment that decides whether an
+# utterance was addressed to us is off here and tested in test_typesafe.
 @override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'],
-                   MUXLISA_API_KEY='test-private-key',
+                   MUXLISA_API_KEY='test-private-key', TYPESAFE_API_KEY='',
                    STORAGES={'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
                              'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'}})
 class RealtimeTests(TestCase):

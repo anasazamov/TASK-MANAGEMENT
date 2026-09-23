@@ -154,6 +154,16 @@ if not DEBUG:
     SECURE_HSTS_PRELOAD = True
 if os.getenv('TRUST_PROXY_HTTPS') == '1':
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+# TypeSafe (Jev) answers two narrow questions: is this speech meant for us, and
+# which employee does a command mean when several share a name. Without a key
+# both fall back to what the code did before: listen to everything, and ask.
+TYPESAFE_API_KEY = os.getenv('TYPESAFE_API_KEY', '').strip()
+TYPESAFE_MODEL = os.getenv('TYPESAFE_MODEL', 'jev-latest').strip()
+# Room speech measured around 0.19, real commands around 0.81; the cut sits low
+# so an unusual command is still heard.
+TYPESAFE_COMMAND_MIN = float(os.getenv('TYPESAFE_COMMAND_MIN', '0.4'))
+TYPESAFE_PERSON_MIN = float(os.getenv('TYPESAFE_PERSON_MIN', '0.85'))
+
 DUE_SOON_DAYS = 3
 STALE_DAYS = 14
 

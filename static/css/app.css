@@ -29,3 +29,17 @@
 [data-telegram=true] .agent-launch{bottom:calc(16px + env(safe-area-inset-bottom,0px));right:16px;padding:10px 14px;font-size:11px}
 [data-telegram=true] .agent-launch span{display:none}
 [data-telegram=true] body{overscroll-behavior-y:contain}
+
+/* Searchable select: the native control stays under the input, invisible but
+   focusable, so required-field validation still has something to point at. */
+.select-search{position:relative}
+.select-search select{position:absolute;left:0;top:0;width:100%;height:100%;padding:0;border:0;opacity:0;pointer-events:none}
+.select-search-input{cursor:text;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 15px) calc(50% + 1px),calc(100% - 10px) calc(50% + 1px);background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:30px}
+.select-search.open .select-search-input{border-color:#8aa4c7;box-shadow:0 0 0 3px #6c96cf1c}
+.select-search-list{position:absolute;z-index:60;left:0;right:0;top:calc(100% + 4px);margin:0;padding:4px;list-style:none;max-height:260px;overflow-y:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 8px 24px #172e4914}
+.select-search-option{padding:8px 10px;border-radius:6px;cursor:pointer}
+.select-search-option.active{background:var(--nav-active)}
+.select-search-option[aria-selected=true]{font-weight:600}
+.select-search-option[data-disabled]{opacity:.5;cursor:default}
+.select-search-empty{padding:8px 10px;color:var(--muted)}
+.push-actions{display:flex;gap:8px;flex-wrap:wrap}

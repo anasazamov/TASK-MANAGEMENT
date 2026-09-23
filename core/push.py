@@ -42,28 +42,56 @@ def background(subscriptions, payload):
 
 
 def deliver(subscriptions, payload):
-    from pywebpush import WebPushException, webpush
     for subscription in subscriptions:
         try:
-            webpush(subscription_info={'endpoint': subscription.endpoint,
-                                       'keys': {'p256dh': subscription.p256dh, 'auth': subscription.auth}},
-                    data=payload, vapid_private_key=settings.VAPID_PRIVATE_KEY,
-                    vapid_claims={'sub': settings.VAPID_SUBJECT}, timeout=10, ttl=86400)
-            if subscription.failed_at:
-                PushSubscription.objects.filter(pk=subscription.pk).update(failed_at=None)
-        except WebPushException as error:
-            status = getattr(error.response, 'status_code', None)
-            # 404/410 mean the browser dropped this subscription for good.
-            if status in (404, 410):
-                PushSubscription.objects.filter(pk=subscription.pk).delete()
-            else:
-                mark_failed(subscription)
-            logger.warning('Push delivery failed status=%s', status)
-        except (OSError, ValueError) as error:
-            mark_failed(subscription)
-            logger.warning('Push delivery failed: %s', type(error).__name__)
+            send_one(subscription, payload)
         finally:
             connection.close()
+
+
+def send_one(subscription, payload):
+    """One delivery. Returns '' when the push service took it, else why not.
+
+    The reason is what the self-test on the notifications page shows: without it
+    a push that never arrives looks the same as one that was never attempted.
+    """
+    from pywebpush import WebPushException, webpush
+    try:
+        webpush(subscription_info={'endpoint': subscription.endpoint,
+                                   'keys': {'p256dh': subscription.p256dh, 'auth': subscription.auth}},
+                data=payload, vapid_private_key=settings.VAPID_PRIVATE_KEY,
+                vapid_claims={'sub': settings.VAPID_SUBJECT}, timeout=10, ttl=86400)
+    except WebPushException as error:
+        status = getattr(error.response, 'status_code', None)
+        # 404/410 mean the browser dropped this subscription for good.
+        if status in (404, 410):
+            PushSubscription.objects.filter(pk=subscription.pk).delete()
+        else:
+            mark_failed(subscription)
+        logger.warning('Push delivery failed status=%s', status)
+        return f'{status or "xato"} — {str(error)[:140]}'
+    except (OSError, ValueError) as error:
+        mark_failed(subscription)
+        logger.warning('Push delivery failed: %s', type(error).__name__)
+        return f'{type(error).__name__} — {str(error)[:140]}'
+    if subscription.failed_at:
+        PushSubscription.objects.filter(pk=subscription.pk).update(failed_at=None)
+    return ''
+
+
+def self_test(user):
+    """Send one push to this person's own browsers and report what happened."""
+    if not configured():
+        return False, 'Serverda VAPID kalitlari sozlanmagan (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY).'
+    subscriptions = list(PushSubscription.objects.filter(user=user))
+    if not subscriptions:
+        return False, 'Bu brauzer obuna emas. Avval «Bildirishnomani yoqish» ni bosing.'
+    payload = json.dumps({'title': 'Sinov xabarnomasi',
+                          'body': 'Bildirishnomalar ishlayapti.', 'url': '/notifications/'}, ensure_ascii=False)
+    problems = [reason for reason in (send_one(item, payload) for item in subscriptions) if reason]
+    if not problems:
+        return True, f'{len(subscriptions)} ta brauzerga yuborildi. Bildirishnoma ko‘rinmasa, brauzer sozlamalarini tekshiring.'
+    return False, 'Push xizmati qabul qilmadi: ' + '; '.join(problems[:2])
 
 
 def mark_failed(subscription):

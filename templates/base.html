@@ -9,6 +9,8 @@
   <script src="{% static 'js/theme.js' %}"></script>
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
   {% if user.is_authenticated %}<link rel="stylesheet" href="{% static 'css/agent.css' %}"><script src="{% static 'js/voice-vad.js' %}" defer></script><script src="{% static 'js/voice-noise-filter.js' %}" defer></script><script src="{% static 'js/voice-realtime.js' %}" defer></script><script src="{% static 'js/agent.js' %}" defer></script>{% endif %}
+  <script src="{% static 'js/select-search.js' %}" defer></script>
+  {% if user.is_authenticated %}<script src="{% static 'js/notifications-live.js' %}" defer></script>{% endif %}
   <script src="{% static 'js/app.js' %}" defer></script>
   <script src="{% static 'js/telegram.js' %}" defer></script>
   {% if user.is_authenticated %}<script src="{% static 'js/voice-audio.js' %}" defer></script><link rel="stylesheet" href="{% static 'css/voice-identity.css' %}">{% endif %}
@@ -46,7 +48,7 @@
     <div class="page-heading"><h1>{{ page_title }}</h1><p>{{ subtitle }}</p></div>
     <div class="header-actions">
       <button class="icon-button theme-toggle" data-theme-toggle aria-label="Tungi rejimga o‘tish" title="Rang rejimi">{% icon 'sun' %}</button>
-      <a class="icon-button notification-button {% if current_page == 'notifications' %}selected{% endif %}" href="{% url 'notifications' %}" aria-label="Xabarnomalar{% if unread_count %}: {{ unread_count }} ta o‘qilmagan{% endif %}">{% icon 'bell' %}{% if unread_count %}<span class="notification-count">{% if unread_count > 9 %}9+{% else %}{{ unread_count }}{% endif %}</span>{% endif %}</a>
+      <a class="icon-button notification-button {% if current_page == 'notifications' %}selected{% endif %}" href="{% url 'notifications' %}" data-live-url="{% url 'notifications_live' %}" aria-label="Xabarnomalar{% if unread_count %}: {{ unread_count }} ta o‘qilmagan{% endif %}">{% icon 'bell' %}{% if unread_count %}<span class="notification-count">{% if unread_count > 9 %}9+{% else %}{{ unread_count }}{% endif %}</span>{% endif %}</a>
       <button type="button" class="button secondary voice-header" data-agent-open>{% icon 'mic' %} Agent</button>
       {% if user.can_assign %}<a class="button primary" href="{% url 'task_create' %}">{% icon 'plus' %}<span>Topshiriq berish</span></a>{% endif %}
     </div>
@@ -57,7 +59,7 @@
     <footer class="page-footer"><span>Samarkand Invest Company</span><span>Topshiriq nazorati · {{ today|date:'Y' }}</span></footer>
   </main>
 </div>
-<div id="push-config" hidden data-push-key="{{ push_key }}" data-push-user="{{ user.pk }}" data-worker-url="{% url 'push_worker' %}" data-subscribe-url="{% url 'push_subscribe' %}" data-unsubscribe-url="{% url 'push_unsubscribe' %}">{% csrf_token %}</div>
+<div id="push-config" hidden data-push-key="{{ push_key }}" data-push-user="{{ user.pk }}" data-worker-url="{% url 'push_worker' %}" data-subscribe-url="{% url 'push_subscribe' %}" data-unsubscribe-url="{% url 'push_unsubscribe' %}" data-test-url="{% url 'push_test' %}">{% csrf_token %}</div>
 <script src="{% static 'js/push.js' %}" defer></script>
 <dialog class="task-drawer" id="task-drawer" aria-label="Topshiriq tafsilotlari"><button class="drawer-close icon-button" data-drawer-close aria-label="Tafsilotlarni yopish">{% icon 'close' %}</button><div id="drawer-content"></div></dialog>
 {% include 'core/_agent.html' %}

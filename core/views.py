@@ -23,7 +23,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
-from . import pages, reports, telegram
+from . import pages, push, reports, telegram
 from .forms import (ActionForm, AttachmentForm, ControllerForm, DepartmentForm, EmployeeEditForm,
                     EmployeeForm, LoginForm, ParticipantForm, PartActionForm, TaskForm)
 from .models import (DeadlineRequest, Department, Event, PushSubscription, Task, TaskAttachment,
@@ -433,6 +433,14 @@ def push_subscribe(request):
 
 @login_required
 @require_POST
+def push_test(request):
+    """Send one push to this person's own browsers and say what came back."""
+    ok, message = push.self_test(request.user)
+    return JsonResponse({'ok': ok, 'message': message})
+
+
+@login_required
+@require_POST
 def push_unsubscribe(request):
     endpoint = json.loads(request.body or '{}').get('endpoint')
     PushSubscription.objects.filter(user=request.user, endpoint=endpoint if isinstance(endpoint, str) else '').delete()
@@ -545,6 +553,23 @@ def notifications(request):
     items = request.user.notifications.filter(task__in=tasks_for(request.user)).select_related('task')
     return render(request, 'core/notifications.html', {'page_title': 'Xabarnomalar', 'subtitle': 'Topshiriqlar bo‘yicha so‘nggi yangiliklar',
         'items': Paginator(items, 30).get_page(request.GET.get('page')), 'push_key': settings.VAPID_PUBLIC_KEY})
+
+
+@login_required
+@require_GET
+def notifications_live(request):
+    """What the bell would show right now, without reloading the page."""
+    tasks = Task.objects.visible_to(request.user)
+    notifications = request.user.notifications.filter(task__in=tasks)
+    after = request.GET.get('after', '')
+    fresh = []
+    if after.isdigit():
+        for item in notifications.filter(pk__gt=int(after)).select_related('task').order_by('-pk')[:10]:
+            fresh.append({'id': item.pk, 'title': item.title, 'task': item.task.title,
+                          'url': item.task.get_absolute_url(), 'unread': item.read_at is None,
+                          'created': timezone.localtime(item.created_at).strftime('%d.%m.%Y %H:%M')})
+    return JsonResponse({'unread': notifications.filter(read_at__isnull=True).count(),
+                         'active': tasks.exclude(status='accepted').count(), 'items': fresh})
 
 
 @login_required

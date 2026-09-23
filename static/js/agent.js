@@ -198,6 +198,8 @@
     fields.description.value = draft.description || '';
     if (draft.assignee_id && fields.assignee.querySelector(`option[value="${draft.assignee_id}"]`)) {
       fields.assignee.value = String(draft.assignee_id);
+      // A value set from code fires nothing; the search box reads the select on change.
+      fields.assignee.dispatchEvent(new Event('change', {bubbles: true}));
     }
     if (fields.due_at) fields.due_at.value = draft.due_at || '';
     fields.title.focus({preventScroll: true});

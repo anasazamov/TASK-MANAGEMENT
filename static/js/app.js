@@ -50,6 +50,7 @@
       // Only our authenticated, server-rendered detail fragment is inserted.
       const parsed = new DOMParser().parseFromString(html, 'text/html');
       content.replaceChildren(...Array.from(parsed.body.childNodes));
+      window.SelectSearch?.mount(content);
     } catch (error) {
       if (error.name !== 'AbortError') { drawer.close(); window.location.assign(link.href); }
     }
@@ -58,6 +59,9 @@
   on(drawer, 'click', event => { if (event.target === drawer && event.clientX < drawer.getBoundingClientRect().left) drawer.close(); });
   on(drawer, 'close', () => { currentLoad?.abort(); lastTrigger?.focus(); });
   on(document, 'keydown', event => { if (event.key === 'Escape') closeMenu(); });
+
+  // Long option lists (employees, departments) get a search box of their own.
+  window.SelectSearch?.mount();
 
   const dueInput = document.getElementById('id_due_at');
   const tashkentValue = date => {

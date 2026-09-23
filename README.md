@@ -161,6 +161,8 @@ Admin kerak bo‘lsa: `python manage.py createsuperuser`. Oddiy rais hisobi Djan
 - Muddatsiz vazifalar 14 kundan keyin diqqat talab qiladigan vazifalarda ham ko‘rinadi.
 - Xabarnomalar, xronologik tarix va ko‘p darajali delegatsiya zanjiri.
 - «Xodimlar» sahifasida statistika jadvali: topshiriqlar soni, bajarilmoqda (jarayonda yoki tasdiq kutilmoqda), bajarilmagan (muddati o‘tgan) va tanishilmagan (ijrochi hali ochmagan) topshiriqlar. Hafta tanlansa, shu haftada berilgan topshiriqlar hisoblanadi; jadval Excel (`.xlsx`) sifatida yuklab olinadi. Rahbar faqat o‘ziga ko‘rinadigan topshiriqlar statistikasini ko‘radi.
+- Uzun ro‘yxatli tanlovlarda (ijrochi, nazoratchi, bo‘linma) qidiruv: 8 tadan ortiq variant bo‘lsa, tanlov maydoni yozib izlaydigan bo‘ladi. Apostrof va katta-kichik harf farqi hisobga olinmaydi — `A’zamov`, `Azamov`, `azamov` bir xil topiladi. Klaviatura (↑ ↓ Enter, Esc) bilan ishlaydi.
+- Xabarnomalar sahifa yangilanishini kutmaydi: qo‘ng‘iroqdagi son va topshiriqlar soni har 25 soniyada yangilanadi, xabarnomalar sahifasida yangi yozuvlar ro‘yxat boshiga qo‘shiladi. Tab fonda tursa so‘rov yuborilmaydi.
 - Responsive sahifalar, klaviatura bilan ishlaydigan tafsilotlar paneli va tungi rejim.
 
 Huquqlar faqat menyu bilan cheklanmaydi: barcha POST amallar serverda tekshiriladi. Quyi vazifalari yopilmagan asosiy vazifa ijroga topshirilmaydi. Xodim o‘z ijrosini tasdiqlay olmaydi. Quyi topshiriq muddati barcha yuqori vazifalar muddatidan kech bo‘lishi mumkin emas. Faol topshiriqlari bo‘lgan xodim boshqa bo‘linmaga ko‘chirilmaydi. Tarix UI va Django admin orqali tahrirlanmaydi; baza administratori darajasida kriptografik o‘zgarmaslik da’vo qilinmaydi.
@@ -272,7 +274,7 @@ Bot xabarlari: yangi topshiriq, muddat eslatmalari va boshqa xabarnomalar botga 
 .\.venv\Scripts\python.exe manage.py push_keys
 ```
 
-Talab: **haqiqiy HTTPS sertifikati**. Brauzer o‘z-o‘zidan imzolangan sertifikatli saytda service worker’ni bloklaydi, shuning uchun `mkcert` bilan yaratilgan va har bir kompyuterga ishonchli qilib o‘rnatilgan sertifikat yoki domen + Let’s Encrypt kerak. Bildirishnomada faqat sarlavha, topshiriq kodi va nomi bo‘ladi; matn va izohlar yuborilmaydi. Xodim ruxsatni brauzerdan istalgan payt qaytarib olishi mumkin, yaroqsiz obuna esa birinchi urinishda o‘chiriladi.
+Talab: **haqiqiy HTTPS sertifikati**. Brauzer o‘z-o‘zidan imzolangan sertifikatli saytda service worker’ni bloklaydi, shuning uchun `mkcert` bilan yaratilgan va har bir kompyuterga ishonchli qilib o‘rnatilgan sertifikat yoki domen + Let’s Encrypt kerak. Xabarnomalar sahifasidagi «Sinov xabarnomasi» tugmasi shu foydalanuvchining o‘z brauzerlariga haqiqiy push yuboradi va push xizmati nima javob berganini (masalan `403` yoki `VAPID` xatosi) ekranda ko‘rsatadi — xabar kelmasa, sabab shu yerda ko‘rinadi. Bildirishnomada faqat sarlavha, topshiriq kodi va nomi bo‘ladi; matn va izohlar yuborilmaydi. Xodim ruxsatni brauzerdan istalgan payt qaytarib olishi mumkin, yaroqsiz obuna esa birinchi urinishda o‘chiriladi.
 
 Bu buyruq muddat yaqinlashishi, buzilishi, zanjir bo‘yicha eskalatsiya va eskirgan muddatsiz vazifalar uchun **ilova ichidagi** xabarlarni yaratadi (obuna bo‘lgan brauzerlarga push ham yuboriladi). Bir kunda takroriy ishga tushirish xabarlarni ko‘paytirmaydi. Doimiy ishlash uchun server scheduler/Windows Task Scheduler’da har soat ishga tushiring; Docker stack’ida buni `reminders` konteyneri bajaradi. Xabar kanallari: ilova ichidagi xabarnomalar, Web Push va Telegram boti. Email/SMS integratsiyasi yo‘q.
 

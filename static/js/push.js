@@ -29,6 +29,7 @@
     const response = await fetch(url, {method: 'POST', credentials: 'same-origin',
       headers: {'X-CSRFToken': csrf, 'Content-Type': 'application/json'}, body: JSON.stringify(body)});
     if (!response.ok) throw new Error('Obunani saqlab bo‘lmadi. Sahifani yangilab qayta urinib ko‘ring.');
+    return response.json().catch(() => ({}));
   }
   const remember = () => { try { localStorage.setItem(askedKey, '1'); } catch (_) {} };
   const asked = () => { try { return localStorage.getItem(askedKey) === '1'; } catch (_) { return true; } };
@@ -66,6 +67,20 @@
     await api(config.dataset.subscribeUrl, subscription.toJSON());
     return subscription;
   }
+
+  // The server tries a real delivery and says what the push service answered,
+  // so a notification that never arrives stops being a silent failure.
+  const test = box?.querySelector('[data-push-test]');
+  test?.addEventListener('click', async () => {
+    const label = test.textContent;
+    test.disabled = true; test.textContent = 'Yuborilmoqda…';
+    try {
+      const result = await api(config.dataset.testUrl, {});
+      status.textContent = result.message || 'Javob kelmadi.';
+    } catch (error) {
+      status.textContent = error.message;
+    } finally { test.disabled = false; test.textContent = label; }
+  });
 
   if (!supported || !key) {
     show(!key ? 'Bildirishnomalar serverda sozlanmagan. Administrator VAPID kalitlarini qo‘shsin.'

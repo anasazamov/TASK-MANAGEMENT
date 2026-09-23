@@ -29,6 +29,42 @@ class PushTests(TestCase):
     def subscribe(self, payload=None):
         return self.client.post('/push/subscribe/', json.dumps(payload or SUBSCRIPTION), content_type='application/json')
 
+    def test_the_self_test_reports_what_the_push_service_answered(self):
+        self.client.force_login(self.employee)
+        refused = self.client.post('/push/test/').json()
+        self.assertFalse(refused['ok'])
+        self.assertIn('obuna emas', refused['message'])
+        self.subscribe()
+        with patch('core.push.send_one', return_value='') as send:
+            accepted = self.client.post('/push/test/').json()
+        self.assertTrue(accepted['ok'])
+        self.assertEqual(json.loads(send.call_args.args[1])['title'], 'Sinov xabarnomasi')
+        with patch('core.push.send_one', return_value='403 \u2014 VAPID kaliti mos emas'):
+            failed = self.client.post('/push/test/').json()
+        self.assertFalse(failed['ok'])
+        self.assertIn('403', failed['message'])
+        with override_settings(VAPID_PRIVATE_KEY=''):
+            unconfigured = self.client.post('/push/test/').json()
+        self.assertIn('VAPID', unconfigured['message'])
+
+    def test_the_bell_is_polled_without_reloading_the_page(self):
+        self.client.force_login(self.employee)
+        with self.captureOnCommitCallbacks(execute=True):
+            task = create_task(self.head, dict(title='Hisobot', description='', assignee=self.employee, due_at=None))
+        empty = self.client.get('/notifications/live/').json()
+        self.assertEqual(empty['unread'], 1)
+        self.assertEqual(empty['items'], [])  # Nothing is sent before the page says what it has.
+        first = self.employee.notifications.get()
+        fresh = self.client.get(f'/notifications/live/?after={first.pk - 1}').json()
+        self.assertEqual([item['id'] for item in fresh['items']], [first.pk])
+        self.assertEqual(fresh['items'][0]['task'], task.title)
+        self.assertTrue(fresh['items'][0]['unread'])
+        self.assertEqual(fresh['active'], 1)
+        self.assertEqual(self.client.get(f'/notifications/live/?after={first.pk}').json()['items'], [])
+        # Another employee's notifications are never counted here.
+        self.client.force_login(self.head)
+        self.assertEqual(self.client.get('/notifications/live/').json()['unread'], 0)
+
     def test_browser_subscribes_and_unsubscribes_itself(self):
         self.assertEqual(self.subscribe().status_code, 302)  # Anonymous users are sent to login.
         self.client.force_login(self.employee)

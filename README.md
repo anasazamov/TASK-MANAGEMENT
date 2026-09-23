@@ -264,6 +264,8 @@ Tizimni Telegram ichida ochish va bot orqali xabar olish mumkin. Xodim botga o�
 
 Buyruq webhookni, Telegramdagi «Topshiriqlar» menyu tugmasini va `/start` buyrug‘ini sozlaydi, so‘ng Telegramning o‘zidagi holatni ko‘rsatadi. Javob kech kelsa yoki umuman kelmasa, `manage.py telegram_setup --info` hech narsani o‘zgartirmay shu holatni qayta o‘qiydi: webhook manzili, navbatdagi yangilanishlar soni va Telegram ko‘rgan so‘nggi xato (masalan sertifikat yoki 502). Bot javobi webhook javobining o‘zida qaytadi, shuning uchun har bir xabar uchun alohida so‘rov yuborilmaydi. Telegram **faqat haqiqiy https manzil** bilan ishlaydi; o‘z-o‘zidan imzolangan sertifikat qabul qilinmaydi. Telegram Web (brauzerdagi versiya) ilovani iframe ichida ochgani uchun `TELEGRAM_EMBED=1` kerak bo‘ladi — u sessiya cookie’sini `SameSite=None; Secure` qilib qo‘yadi.
 
+Telegram SDK’sining o‘zi har bir almashuvni konsolga yozadi (`[Telegram.WebView] > postEvent`) va uni o‘chirish uchun sozlama yo‘q, shuning uchun ilova shu yozuvlarnigina filtrlaydi; SDK’ning haqiqiy ogohlantirishlari (`[Telegram.WebApp]`) qoladi. Kerak bo‘lsa, konsolda `localStorage['sic-telegram-log'] = '1'` ularni qaytaradi.
+
 Xavfsizlik: Mini App ma’lumoti bot tokeni bilan imzolanadi va serverda tekshiriladi; imzo mos kelmasa yoki 24 soatdan eski bo‘lsa, kirish rad etiladi. Faqat foydalanuvchining **o‘z** kontakti qabul qilinadi, boshqaning raqami yuborilsa bog‘lanmaydi. Ro‘yxatda yo‘q raqam hech qachon hisob ochmaydi.
 
 Bot xabarlari: yangi topshiriq, muddat eslatmalari va boshqa xabarnomalar botga ham yuboriladi — xabarda sarlavha, topshiriq kodi va nomi hamda «Ochish» tugmasi bo‘ladi.

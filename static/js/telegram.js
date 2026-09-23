@@ -50,7 +50,19 @@
     if (note) note.textContent = data.message || 'Telegram orqali kirib bo‘lmadi.';
     if (data.error === 'not_linked' && data.bot) {
       const link = document.querySelector('[data-telegram-bot]');
-      if (link) { link.href = `https://t.me/${data.bot}`; link.hidden = false; }
+      if (link) {
+        // ?start= makes the chat open with a START button, so one tap reaches us.
+        const url = `https://t.me/${String(data.bot).replace(/^@/, '')}?start=login`;
+        link.href = url;
+        link.hidden = false;
+        // A Mini App cannot open a t.me address in a tab of its own; the client
+        // has to be asked to switch to the chat, or the button does nothing.
+        link.addEventListener('click', (event) => {
+          if (!app.openTelegramLink) return;
+          event.preventDefault();
+          app.openTelegramLink(url);
+        });
+      }
     }
   }
   signIn().catch(() => {

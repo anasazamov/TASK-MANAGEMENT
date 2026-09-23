@@ -370,7 +370,11 @@ def telegram_webhook(request, secret):
     except ValueError:
         return JsonResponse({'ok': True})
     if isinstance(update, dict):
-        telegram.handle(update)
+        # Telegram sends the reply from this very response, so the bot answers
+        # without the server calling back out to api.telegram.org.
+        answer = telegram.handle(update)
+        if answer:
+            return JsonResponse(answer)
     return JsonResponse({'ok': True})
 
 

@@ -103,21 +103,34 @@ class TelegramTests(TestCase):
 
     def test_sharing_a_known_phone_links_the_account(self):
         with patch('core.telegram.call') as call:
-            self.webhook(self.contact('+998 97 924 52 50'))
+            answer = self.webhook(self.contact('+998 97 924 52 50')).json()
         self.employee.refresh_from_db()
         self.assertEqual(self.employee.telegram_id, 555)
-        self.assertIn('Xalimov', json.dumps([c.args[1] for c in call.call_args_list], ensure_ascii=False))
-        with patch('core.telegram.call') as call:
-            self.webhook(self.contact('998901111111', sender=556))
-        self.assertIn('topilmadi', json.dumps([c.args[1] for c in call.call_args_list], ensure_ascii=False))
+        # Answered inside the webhook response: nothing is sent to Telegram.
+        call.assert_not_called()
+        self.assertEqual((answer['method'], answer['chat_id']), ('sendMessage', 555))
+        self.assertIn('Xalimov', answer['text'])
+        self.assertEqual(answer['reply_markup']['inline_keyboard'][0][0]['web_app']['url'],
+                         'https://tasks.example.uz/')
+        refusal = self.webhook(self.contact('998901111111', sender=556)).json()
+        self.assertIn('topilmadi', refusal['text'])
         self.assertEqual(User.objects.filter(telegram_id=556).count(), 0)
 
-    def test_a_contact_belonging_to_somebody_else_is_rejected(self):
+    def test_start_is_answered_by_the_webhook_response(self):
         with patch('core.telegram.call') as call:
-            self.webhook(self.contact('998979245250', sender=900, owner=555))
+            answer = self.webhook({'message': {'chat': {'id': 555}, 'from': {'id': 555}, 'text': '/start login'}}).json()
+        call.assert_not_called()
+        self.assertEqual(answer['method'], 'sendMessage')
+        self.assertTrue(answer['reply_markup']['keyboard'][0][0]['request_contact'])
+        User.objects.filter(pk=self.employee.pk).update(telegram_id=555)
+        linked = self.webhook({'message': {'chat': {'id': 555}, 'from': {'id': 555}, 'text': '/start'}}).json()
+        self.assertIn(self.employee.full_name, linked['text'])
+
+    def test_a_contact_belonging_to_somebody_else_is_rejected(self):
+        answer = self.webhook(self.contact('998979245250', sender=900, owner=555)).json()
         self.employee.refresh_from_db()
         self.assertIsNone(self.employee.telegram_id)
-        self.assertIn('o‘z raqamingizni', json.dumps([c.args[1] for c in call.call_args_list], ensure_ascii=False))
+        self.assertIn('o‘z raqamingizni', answer['text'])
 
     def test_webhook_needs_the_secret_path(self):
         with patch('core.telegram.handle') as handler:
@@ -126,8 +139,7 @@ class TelegramTests(TestCase):
 
     def test_moving_telegram_to_another_employee_leaves_one_link(self):
         User.objects.filter(pk=self.head.pk).update(telegram_id=555)
-        with patch('core.telegram.call'):
-            self.webhook(self.contact('998979245250'))
+        self.webhook(self.contact('998979245250'))
         self.head.refresh_from_db()
         self.employee.refresh_from_db()
         self.assertIsNone(self.head.telegram_id)

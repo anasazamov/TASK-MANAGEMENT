@@ -260,7 +260,7 @@ Tizimni Telegram ichida ochish va bot orqali xabar olish mumkin. Xodim botga o�
 .\.venv\Scripts\python.exe manage.py telegram_setup
 ```
 
-Buyruq webhookni, Telegramdagi «Topshiriqlar» menyu tugmasini va `/start` buyrug‘ini sozlaydi. Telegram **faqat haqiqiy https manzil** bilan ishlaydi; o‘z-o‘zidan imzolangan sertifikat qabul qilinmaydi. Telegram Web (brauzerdagi versiya) ilovani iframe ichida ochgani uchun `TELEGRAM_EMBED=1` kerak bo‘ladi — u sessiya cookie’sini `SameSite=None; Secure` qilib qo‘yadi.
+Buyruq webhookni, Telegramdagi «Topshiriqlar» menyu tugmasini va `/start` buyrug‘ini sozlaydi, so‘ng Telegramning o‘zidagi holatni ko‘rsatadi. Javob kech kelsa yoki umuman kelmasa, `manage.py telegram_setup --info` hech narsani o‘zgartirmay shu holatni qayta o‘qiydi: webhook manzili, navbatdagi yangilanishlar soni va Telegram ko‘rgan so‘nggi xato (masalan sertifikat yoki 502). Bot javobi webhook javobining o‘zida qaytadi, shuning uchun har bir xabar uchun alohida so‘rov yuborilmaydi. Telegram **faqat haqiqiy https manzil** bilan ishlaydi; o‘z-o‘zidan imzolangan sertifikat qabul qilinmaydi. Telegram Web (brauzerdagi versiya) ilovani iframe ichida ochgani uchun `TELEGRAM_EMBED=1` kerak bo‘ladi — u sessiya cookie’sini `SameSite=None; Secure` qilib qo‘yadi.
 
 Xavfsizlik: Mini App ma’lumoti bot tokeni bilan imzolanadi va serverda tekshiriladi; imzo mos kelmasa yoki 24 soatdan eski bo‘lsa, kirish rad etiladi. Faqat foydalanuvchining **o‘z** kontakti qabul qilinadi, boshqaning raqami yuborilsa bog‘lanmaydi. Ro‘yxatda yo‘q raqam hech qachon hisob ochmaydi.
 

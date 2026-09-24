@@ -19,7 +19,11 @@ class SeedStaffTests(TestCase):
         self.assertEqual((chair.role, chair.department), ('chair', None))
         self.assertEqual(User.objects.get(username='isomiddinov').role, 'office')
         self.assertEqual(User.objects.get(username='tosheva').role, 'secretary')
-        self.assertEqual(User.objects.filter(role='head').count(), 13)
+        self.assertEqual(User.objects.filter(role='head').count(), 12)
+        # Both of the chair's deputies carry their own role; the chair assigns
+        # the departments each of them answers for.
+        self.assertEqual({u.username for u in User.objects.filter(role='deputy')}, {'musinov', 'xaitov'})
+        self.assertFalse(User.objects.filter(role='deputy', supervised__isnull=False).exists())
         digital = Department.objects.get(name__startswith='Raqamlashtirish')
         self.assertEqual(digital.head.username, 'xudayarov')
         self.assertEqual({u.username for u in digital.employees.all()}, {'xudayarov', 'azamov'})

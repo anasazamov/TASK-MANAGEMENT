@@ -34,6 +34,26 @@ class MultipleFileField(forms.FileField):
         return [super(MultipleFileField, self).clean(item, initial) for item in items if item not in (None, '')]
 
 
+ROLE_CHOICES = [(User.Role.EMPLOYEE, 'Xodim'), (User.Role.HEAD, 'Bo‘lim boshlig‘i'),
+                (User.Role.DEPUTY, 'Rais o‘rinbosari'), (User.Role.OFFICE, 'Devonxona mudiri'),
+                (User.Role.SECRETARY, 'Kotiba')]
+SUPERVISED_HELP = 'Faqat rais o‘rinbosari uchun: qaysi bo‘linmalarni nazorat qiladi. Ko‘p tanlash mumkin.'
+
+
+def deputy_departments(form, data):
+    """Supervised departments belong to a deputy and to nobody else."""
+    if data.get('role') != User.Role.DEPUTY:
+        data['supervised'] = Department.objects.none()
+        return data
+    if not data.get('supervised') and 'supervised' not in form.data and form.instance.pk:
+        # A caller that never offered the field, such as the agent editing a job
+        # title, is not asking for the departments to be cleared.
+        data['supervised'] = form.instance.supervised.all()
+    if not data.get('supervised'):
+        raise ValidationError('Rais o‘rinbosari uchun kamida bitta bo‘linma tanlang.')
+    return data
+
+
 class TaskForm(forms.ModelForm):
     due_at = forms.DateTimeField(label='Muddat sanasi va vaqti', required=False, widget=LocalDateTimeInput(),
                                  help_text='Toshkent vaqti. Bo‘sh qoldirilsa — muddatsiz topshiriq.')
@@ -124,14 +144,15 @@ class DepartmentForm(forms.ModelForm):
 class EmployeeForm(UserCreationForm):
     class Meta:
         model = User
-        fields = ['full_name', 'username', 'job_title', 'phone', 'department', 'role', 'password1', 'password2']
+        fields = ['full_name', 'username', 'job_title', 'phone', 'department', 'role', 'supervised',
+                  'password1', 'password2']
         labels = {'username': 'Login', 'department': 'Bo‘linma'}
         help_texts = {'username': 'Lotin harflari, raqamlar va @/./+/-/_ belgilaridan foydalaning.'}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['role'].choices = [(User.Role.EMPLOYEE, 'Xodim'), (User.Role.HEAD, 'Bo‘lim boshlig‘i'),
-                                       (User.Role.OFFICE, 'Devonxona mudiri'), (User.Role.SECRETARY, 'Kotiba')]
+        self.fields['role'].choices = ROLE_CHOICES
+        self.fields['supervised'].help_text = SUPERVISED_HELP
         self.fields['department'].required = True
         self.fields['password1'].label = 'Vaqtinchalik parol'
         self.fields['password2'].label = 'Parolni takrorlang'
@@ -141,7 +162,7 @@ class EmployeeForm(UserCreationForm):
         department = data.get('department')
         if data.get('role') == User.Role.HEAD and department and department.head_id:
             raise ValidationError('Bu bo‘linmada boshliq mavjud. Avval amaldagi boshliq rolini o‘zgartiring.')
-        return data
+        return deputy_departments(self, data)
 
     @transaction.atomic
     def save(self, commit=True):
@@ -158,13 +179,13 @@ class EmployeeForm(UserCreationForm):
 class EmployeeEditForm(forms.ModelForm):
     class Meta:
         model = User
-        fields = ['full_name', 'job_title', 'phone', 'department', 'role']
+        fields = ['full_name', 'job_title', 'phone', 'department', 'role', 'supervised']
         labels = {'department': 'Bo‘linma'}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['role'].choices = [(User.Role.EMPLOYEE, 'Xodim'), (User.Role.HEAD, 'Bo‘lim boshlig‘i'),
-                                       (User.Role.OFFICE, 'Devonxona mudiri'), (User.Role.SECRETARY, 'Kotiba')]
+        self.fields['role'].choices = ROLE_CHOICES
+        self.fields['supervised'].help_text = SUPERVISED_HELP
         self.fields['department'].required = True
 
     def clean(self):
@@ -175,7 +196,7 @@ class EmployeeEditForm(forms.ModelForm):
         if department and department.pk != self.instance.department_id:
             if self.instance.assigned_tasks.exclude(status='accepted').exists() or self.instance.issued_tasks.exclude(status='accepted').exists():
                 raise ValidationError('Bo‘linmani almashtirishdan oldin xodimning faol topshiriqlarini yoping.')
-        return data
+        return deputy_departments(self, data)
 
     @transaction.atomic
     def save(self, commit=True):

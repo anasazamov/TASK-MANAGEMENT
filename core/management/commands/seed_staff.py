@@ -30,10 +30,10 @@ TURIZM = 'Turizm va xizmat ko‘rsatishni rivojlantirish bo‘yicha loyiha ofisi
 # username, F.I.Sh., department, role, lavozim, telefon
 ROSTER = [
     ('abilov', 'Abilov Feruz Ne’matullayevich', None, 'chair', 'Boshqaruv raisi', ''),
-    ('musinov', 'Musinov Dilshod Sultonovich', RAHBARIYAT, 'head',
+    ('musinov', 'Musinov Dilshod Sultonovich', RAHBARIYAT, 'deputy',
      'Iqtisodiyot, moliya va strategik rivojlantirish masalalari bo‘yicha Boshqaruv raisining birinchi o‘rinbosari',
      '998901000009'),
-    ('xaitov', 'Xaitov Orif Boliqulovich', RAHBARIYAT, 'employee',
+    ('xaitov', 'Xaitov Orif Boliqulovich', RAHBARIYAT, 'deputy',
      'Boshqaruv raisining Loyiha boshqaruvi bo‘yicha o‘rinbosari v.b.', '998933570504'),
     ('raximov', 'Raximov Zafar Ismatovich', ADMINISTRATSIYA, 'head', 'Boshqaruv administratsiyasi rahbari', '998975790007'),
     ('ergashev', 'Ergashev Jahongir Yusufxonovich', ADMINISTRATSIYA, 'employee', 'Boshqaruv administratsiyasi bosh mutaxassisi', '998991460123'),

@@ -8,6 +8,9 @@ def assignees_for(user):
     if user.is_chair or user.is_secretary:
         # The secretary writes up the chair's instructions for every department.
         return users
+    if user.is_deputy:
+        # A deputy gives work to the departments they answer for, heads included.
+        return users.filter(department_id__in=user.supervised_ids)
     if user.is_office:
         # The office forwards incoming letters to department heads, not to staff.
         return users.filter(role=User.Role.HEAD)
@@ -21,6 +24,9 @@ def controllers_for(user):
     people = User.objects.filter(is_active=True).exclude(pk=user.pk)
     if user.is_chair or user.is_office:
         return people
+    if user.is_deputy:
+        return people.filter(Q(department_id__in=user.supervised_ids)
+                             | Q(role__in=[User.Role.SECRETARY, User.Role.OFFICE]))
     if user.role == User.Role.HEAD:
         return people.filter(Q(department_id=user.department_id) | Q(role__in=[User.Role.SECRETARY, User.Role.OFFICE]))
     return people.none()
@@ -31,9 +37,17 @@ def can_manage(user, task):
 
 
 def can_control(user, task):
-    """Controllers follow execution: they may comment and ask for a report."""
-    return user.is_active and task.participants.filter(
-        user=user, kind=TaskParticipant.Kind.CONTROLLER).exists()
+    """Controllers follow execution: they may comment and ask for a report.
+
+    A deputy holds this over their own departments without being named on each
+    task: watching them is the role. Deciding is not — accepting, returning and
+    changing a deadline stay with whoever issued the task.
+    """
+    if not user.is_active:
+        return False
+    if user.is_deputy and task.assignee.department_id in user.supervised_ids:
+        return True
+    return task.participants.filter(user=user, kind=TaskParticipant.Kind.CONTROLLER).exists()
 
 
 def can_add_participants(user, task):

@@ -24,6 +24,7 @@ class Department(models.Model):
 class User(AbstractUser):
     class Role(models.TextChoices):
         CHAIR = 'chair', 'Boshqaruv raisi'
+        DEPUTY = 'deputy', 'Rais o‘rinbosari'
         HEAD = 'head', 'Bo‘lim boshlig‘i'
         OFFICE = 'office', 'Devonxona mudiri'
         SECRETARY = 'secretary', 'Kotiba'
@@ -36,6 +37,10 @@ class User(AbstractUser):
     telegram_id = models.BigIntegerField('Telegram ID', null=True, blank=True, unique=True, editable=False)
     role = models.CharField('Rol', max_length=12, choices=Role.choices, default=Role.EMPLOYEE)
     department = models.ForeignKey(Department, null=True, blank=True, on_delete=models.PROTECT, related_name='employees')
+    # A deputy works across departments rather than inside one: these are the
+    # departments they answer for, and the whole of their reach is derived here.
+    supervised = models.ManyToManyField(Department, blank=True, related_name='deputies',
+                                        verbose_name='Nazorat qiladigan bo‘linmalar')
 
     class Meta:
         ordering = ['full_name', 'username']
@@ -56,6 +61,14 @@ class User(AbstractUser):
         return self.role == self.Role.CHAIR
 
     @property
+    def is_deputy(self):
+        return self.role == self.Role.DEPUTY
+
+    @property
+    def supervised_ids(self):
+        return list(self.supervised.values_list('pk', flat=True)) if self.is_deputy else []
+
+    @property
     def is_office(self):
         return self.role == self.Role.OFFICE
 
@@ -65,7 +78,8 @@ class User(AbstractUser):
 
     @property
     def can_assign(self):
-        return self.role in [self.Role.CHAIR, self.Role.HEAD, self.Role.OFFICE, self.Role.SECRETARY]
+        return self.role in [self.Role.CHAIR, self.Role.DEPUTY, self.Role.HEAD,
+                             self.Role.OFFICE, self.Role.SECRETARY]
 
     @property
     def can_oversee(self):
@@ -96,6 +110,14 @@ class TaskQuerySet(models.QuerySet):
             return self.filter(Q(issuer=user) | Q(assignee=user) | Q(pk__in=TaskParticipant.objects.filter(user=user).values('task')))
         # Subquery, not a join: an extra participant must not duplicate task rows.
         parts = TaskParticipant.objects.filter(user=user).values('task')
+        if user.is_deputy:
+            # Everything inside the departments this deputy answers for, plus
+            # whatever they were given or took part in elsewhere.
+            departments = user.supervised_ids
+            parts = TaskParticipant.objects.filter(
+                Q(user__department_id__in=departments) | Q(user=user)).values('task')
+            return self.filter(Q(assignee__department_id__in=departments) | Q(issuer=user)
+                               | Q(assignee=user) | Q(pk__in=parts))
         if user.role == User.Role.HEAD and user.department_id:
             parts = TaskParticipant.objects.filter(
                 Q(user__department_id=user.department_id) | Q(user=user)).values('task')

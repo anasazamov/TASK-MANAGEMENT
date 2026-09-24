@@ -137,7 +137,7 @@ Server `certs/` papkasida shu kompyuter IP manzillari uchun o‘z-o‘zidan imzo
 .\.venv\Scripts\python.exe manage.py seed_staff
 ```
 
-Rais o‘rinbosarlari `deputy` roli bilan qo‘shiladi; ular nazorat qiladigan bo‘linmalarni rais «Xodimlar» sahifasidagi tahrirlash oynasida belgilaydi — belgilanmaguncha o‘rinbosar hech qanday topshiriqni ko‘rmaydi.
+Rais o‘rinbosarlari `deputy` roli bilan qo‘shiladi; ular nazorat qiladigan bo‘linmalarni rais Struktura sahifasidagi «Tahrirlash» oynasida belgilaydi — belgilanmaguncha o‘rinbosar hech qanday topshiriqni ko‘rmaydi.
 
 Login — familiya (masalan `xalimov`). Mavjud loginlar o‘zgartirilmaydi, shuning uchun ro‘yxat yangilangach buyruqni qayta ishga tushirish xavfsiz. Xo‘jalik ishlari bo‘limi xodimlari ro‘yxatga kiritilmagan; Devonxona mudiri `office`, kotib referent `secretary` roli bilan qo‘shiladi.
 
@@ -149,7 +149,7 @@ Admin kerak bo‘lsa: `python manage.py createsuperuser`. Oddiy rais hisobi Djan
 
 - Login/logout, parolni o‘zgartirish, xodim parolini tiklash va bloklash.
 - Rais: tashkilot bo‘yicha ko‘rish, topshiriq berish, qarorlar, bo‘linma/xodim boshqaruvi.
-- Rais o‘rinbosari: faqat o‘ziga biriktirilgan bo‘linmalar bo‘yicha ishlaydi — o‘sha bo‘linmalar topshiriqlarini ko‘radi, ularning xodimlari va boshliqlariga topshiriq beradi, «Xodimlar» statistikasini shu doirada ochadi. Biriktirilgan bo‘linmalardagi har bir topshiriqni alohida belgilanmasdan nazorat qiladi: izoh yozadi va hisobot so‘raydi. Boshqa rahbar bergan topshiriq bo‘yicha qaror qabul qilmaydi — ijroni qabul qilish, qaytarish va muddat o‘zgartirish topshiriq bergan shaxsda qoladi. Xodim va bo‘linma boshqaruvi hamda Struktura sahifasi faqat raisda. Qaysi bo‘linmalarni nazorat qilishini rais xodim kartochkasida belgilaydi.
+- Rais o‘rinbosari: faqat o‘ziga biriktirilgan bo‘linmalar bo‘yicha ishlaydi — o‘sha bo‘linmalar topshiriqlarini ko‘radi, ularning xodimlari va boshliqlariga topshiriq beradi, «Xodimlar» statistikasini shu doirada ochadi. Biriktirilgan bo‘linmalardagi har bir topshiriqni alohida belgilanmasdan nazorat qiladi: izoh yozadi va hisobot so‘raydi. Boshqa rahbar bergan topshiriq bo‘yicha qaror qabul qilmaydi — ijroni qabul qilish, qaytarish va muddat o‘zgartirish topshiriq bergan shaxsda qoladi. Xodim va bo‘linma boshqaruvi hamda Struktura sahifasi faqat raisda. Qaysi bo‘linmalarni nazorat qilishini rais **Struktura** sahifasida, xodim kartochkasidagi «Tahrirlash» orqali belgilaydi.
 - Bo‘lim boshlig‘i: o‘z bo‘linmasidagi topshiriqlar, o‘z xodimlariga topshiriq berish, o‘ziga berilgan vazifani taqsimlash.
 - Devonxona mudiri: kelgan xat bo‘yicha **faqat bo‘lim boshliqlariga** topshiriq beradi va o‘zi bergan topshiriqlar ijrosini kuzatadi. Boshqa bo‘limlarning ichki topshiriqlarini ko‘rmaydi.
 - Kotiba: butun tashkilot bo‘yicha topshiriqlar va «Xodimlar» statistikasini ko‘radi hamda **barcha bo‘linmalarga topshiriq beradi** (rais topshiriqlarini rasmiylashtiradi). O‘zi bergan topshiriq bo‘yicha rahbar hisoblanadi: ijroni qabul qiladi, muddat belgilaydi. Boshqa rahbarlar bergan topshiriqlar bo‘yicha qaror qabul qilmaydi; nazoratchi qilib belgilansa, izoh yozadi va hisobot so‘raydi. Xodim va bo‘linma boshqaruvi faqat raisda qoladi.

@@ -40,6 +40,9 @@
     currentLoad = new AbortController();
     lastTrigger = link;
     drawer.dataset.agentPath = new URL(link.href).pathname;
+    // The panel is for a quick look; this keeps the way out to the whole page.
+    const expand = drawer.querySelector('[data-drawer-expand]');
+    if (expand) expand.href = link.href;
     content.textContent = 'Yuklanmoqda…';
     if (!drawer.open) drawer.showModal();
     try {

@@ -62,7 +62,7 @@
 </div>
 <div id="push-config" hidden data-push-key="{{ push_key }}" data-push-user="{{ user.pk }}" data-worker-url="{% url 'push_worker' %}" data-subscribe-url="{% url 'push_subscribe' %}" data-unsubscribe-url="{% url 'push_unsubscribe' %}" data-test-url="{% url 'push_test' %}">{% csrf_token %}</div>
 <script src="{% static 'js/push.js' %}" defer></script>
-<dialog class="task-drawer" id="task-drawer" aria-label="Topshiriq tafsilotlari"><button class="drawer-close icon-button" data-drawer-close aria-label="Tafsilotlarni yopish">{% icon 'close' %}</button><div id="drawer-content"></div></dialog>
+<dialog class="task-drawer" id="task-drawer" aria-label="Topshiriq tafsilotlari"><div class="drawer-tools"><a class="button mini secondary" data-drawer-expand href="{% url 'tasks' %}">{% icon 'grid' %} To‘liq sahifada</a><button class="drawer-close icon-button" data-drawer-close aria-label="Tafsilotlarni yopish">{% icon 'close' %}</button></div><div id="drawer-content"></div></dialog>
 {% include 'core/_agent.html' %}
 {% else %}{% block unauthenticated %}{% endblock %}{% endif %}
 {% block extra_scripts %}{% endblock %}

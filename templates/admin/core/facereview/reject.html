@@ -1,0 +1,25 @@
+{% extends "admin/base_site.html" %}
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Bosh sahifa</a> ›
+  <a href="{% url 'admin:core_facereview_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a> ›
+  {{ title }}
+</div>
+{% endblock %}
+{% block content %}
+<p>Quyidagi kutilayotgan tekshiruvlar rad etiladi. Kun boshqa kirish bilan tasdiqlanmagan bo‘lsa,
+xodimga sabab bilan xabar boradi.</p>
+<ul>
+  {% for review in reviews %}
+  <li>{{ review.user }} — {{ review.created_at|date:"d.m.Y H:i" }} ({{ review.get_state_display }})</li>
+  {% endfor %}
+</ul>
+<form method="post">
+  {% csrf_token %}
+  {% for review in reviews %}<input type="hidden" name="{{ action_checkbox_name }}" value="{{ review.pk }}">{% endfor %}
+  <input type="hidden" name="action" value="reject">
+  {{ form.as_p }}
+  <input type="submit" value="Rad etish" class="default">
+  <a href="{% url 'admin:core_facereview_changelist' %}" class="button cancel-link">Bekor qilish</a>
+</form>
+{% endblock %}

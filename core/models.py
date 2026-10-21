@@ -418,6 +418,8 @@ class AccessCard(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
+        verbose_name = 'Domofon kartasi'
+        verbose_name_plural = 'Domofon kartalari'
         ordering = ['user__full_name', 'pk']
         constraints = [
             models.UniqueConstraint(fields=['card_no'], condition=~Q(card_no=''), name='unique_access_card_no'),
@@ -456,6 +458,8 @@ class AccessEvent(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
+        verbose_name = 'Eshik hodisasi'
+        verbose_name_plural = 'Eshik hodisalari'
         ordering = ['-happened_at', '-id']
         indexes = [models.Index(fields=['happened_at']), models.Index(fields=['user', 'happened_at'])]
 
@@ -481,6 +485,8 @@ class Attendance(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = 'Kunlik davomat'
+        verbose_name_plural = 'Kunlik davomat'
         ordering = ['-date']
         constraints = [models.UniqueConstraint(fields=['user', 'date'], name='one_attendance_per_day')]
 
@@ -503,6 +509,8 @@ class AttendanceAlert(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
+        verbose_name = 'Davomat ogohlantirishi'
+        verbose_name_plural = 'Davomat ogohlantirishlari'
         constraints = [models.UniqueConstraint(fields=['subject', 'date', 'kind'], name='one_attendance_alert')]
 
 
@@ -522,6 +530,10 @@ class FaceEnrollment(models.Model):
     model = models.CharField(max_length=64, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Xodim yuzi'
+        verbose_name_plural = 'Xodimlar yuzi'
 
     def __str__(self):
         return f'{self.user.short_name} yuzi'
@@ -546,6 +558,8 @@ class FaceReview(models.Model):
     resolved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
 
     class Meta:
+        verbose_name = 'Yuz tekshiruvi'
+        verbose_name_plural = 'Yuz tekshiruvlari'
         ordering = ['-created_at']
 
 
@@ -571,6 +585,8 @@ class AttendanceExcuse(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
+        verbose_name = 'Uzrli sabab'
+        verbose_name_plural = 'Uzrli sabablar'
         ordering = ['date']
         constraints = [models.UniqueConstraint(fields=['user', 'date'], name='one_attendance_excuse_per_day')]
 

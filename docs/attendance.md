@@ -47,6 +47,39 @@ kichik **ko'prik agent** bog'laydi:
 > Server 2012 eski bo'lsa Python 3.8 o'rnating (yangi versiyalar qo'llab-quvvatlamaydi).
 > Agentga qo'shimcha kutubxona kerak emas.
 
+## 1a. Kartalarni (va PIN'ni) xodimlarga bog'lash
+
+**Birinchi marta, birdan:** `python manage.py seed_access_cards` (avval `--dry-run`). Ro'yxat
+21.10.2026 da domofondan olingan va tekshirilgan 27 xodim; `seed_staff` kabi qayta ishga
+tushirsa bo'ladi. Keyingi o'zgarishlar uchun quyidagi `sync_access_cards`.
+
+Domofondagi har bir shaxsning `employeeNo` va karta raqami tizimdagi foydalanuvchiga
+bog'lanadi. PIN bilan ochilganda hodisa `employeeNo` bilan keladi, shuning uchun u ham
+shu bog'lash orqali taniladi (PIN kodning o'zi o'qilmaydi).
+
+1. Agent turgan kompyuterda ro'yxatni eksport qiling:
+   ```
+   python attendance_agent.py --config attendance_agent.config.json --export-users people.json
+   ```
+2. `people.json` ni serverga ko'chiring va avval **ko'rib chiqing** (hech narsa yozilmaydi):
+   ```
+   python manage.py sync_access_cards --file people.json
+   ```
+   Ismlar domofonda boshqacha yozilgan bo'ladi (`ILYOS AXMEDOV` ↔ `Ahmedov Ilyos …`), shuning
+   uchun taqribiy solishtiriladi: `aniq` — ishonchli, `taxminiy` — tekshiring, `topilmadi` —
+   qo'lda bog'lang.
+3. Yozing:
+   ```
+   python manage.py sync_access_cards --file people.json --map 17=narziyev --skip <sinov ID> --apply
+   ```
+   `--map EMPLOYEE_NO=USER` qo'lda bog'laydi (USER — tizimdagi login yoki ID, masalan
+   `--map 17=narziyev` yoki `--map 17=28`), `--skip` keraksiz yozuvni o'tkazib yuboradi,
+   `--likely` taxminiylarni ham yozadi. Qayta ishga tushirish xavfsiz: o'zgarmaganlar tegilmaydi,
+   boshqa xodimga bog'langan karta `ZIDDIYAT` deb ko'rsatiladi va yozilmaydi.
+
+Domofon ko'rinadigan joyda (`HIKVISION_*` sozlangan) `--file` siz to'g'ridan-to'g'ri o'qiydi.
+Yangi xodimga karta berilganda 1–3-qadamlarni takrorlang.
+
 ## 2. Yuz taqqoslash (OpenCV — Windows va Linux'da bir xil)
 
 Faqat `opencv-python-headless` kerak (u `requirements.txt` da, tayyor wheel bilan
@@ -119,3 +152,13 @@ FACE_MATCH_THRESHOLD=0.35
 - **Xodimlar → Eshik ochilishlari** — barcha kirishlar, sana-vaqt oralig'i filtri.
 - **Xodimlar → Davomat → Yuzlar** — yuz biriktirish (kotib/rais).
 - **Xodimlar → Davomat → Tekshiruvlar** — past moslikdagi yoki yuzsiz kirishlarni tasdiqlash/rad etish (sabab majburiy), ko‘rib chiqilganlar tarixi.
+- **Django admin (/admin/) → Davomat bo'limlari** — superuser uchun to'liq nazorat:
+  - *Domofon kartalari* — qo'shish/tahrirlash/o'chirish, faollashtirish; xodim sahifasida ham kartalar ro'yxati.
+  - *Eshik hodisalari* — xom log (faqat o'qish, audit), «Noma'lum karta» filtri, saqlangan surat.
+  - *Kunlik davomat* — faqat o'qish; «Kunni kirishlardan qayta hisoblash» amali.
+  - *Yuz tekshiruvlari* — surat bilan; «Tasdiqlash» va «Rad etish» (sabab so'raladi) amallari
+    sayt bilan bir xil xizmat orqali ishlaydi: kun qayta hisoblanadi, xodimga xabar boradi.
+  - *Uzrli sabablar* — to'liq tahrir, kim kiritgani saqlanadi.
+  - *Xodimlar yuzi* — surat yuklab biriktirish (yuz topilmasa saqlanmaydi), o'chirish.
+  - *Davomat ogohlantirishlari* — kuniga bir martalik belgilar; o'chirilsa, keyingi ishga
+    tushishda o'sha ogohlantirish qayta yuboriladi.

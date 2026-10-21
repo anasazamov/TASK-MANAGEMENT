@@ -177,6 +177,3 @@ MUXLISA_SPEAKER = 1 if os.getenv('MUXLISA_SPEAKER', '0').strip() == '1' else 0
 VOICE_MAX_AUDIO_BYTES = 5 * 1024 * 1024
 VOICE_MAX_SECONDS = 29
 VOICE_REQUESTS_PER_MINUTE = 24
-VOICE_SPEAKER_MODEL = BASE_DIR / 'private_models' / '3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx'
-VOICE_SPEAKER_THRESHOLD = 0.65
-VOICE_SPEAKER_WINDOW_THRESHOLD = 0.60

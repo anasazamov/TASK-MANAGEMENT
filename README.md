@@ -73,7 +73,7 @@ git pull && docker compose up -d --build   # yangilash
 - Parol taxmin qilishga qarshi himoya: bitta login uchun 5 daqiqada 10 xato urinishdan keyin bloklanadi. Hisoblagich keshda, shuning uchun ilova bir nechta jarayonga bo‘linsa umumiy kesh (Redis) sozlansin.
 - Loglarda ovoz, push, Telegram va agent xatolari ko‘rinadi; parol, token va topshiriq matni yozilmaydi (`DJANGO_LOG_LEVEL=WARNING` bilan qisqartiriladi).
 
-Image `python:3.13-slim` asosida quriladi va ovoz tekshiruvi uchun ishlatilgan og‘ir `sherpa-onnx` paketini ham o‘z ichiga oladi (u hozir hech qaysi URL bilan ulanmagan). Image hajmi muhim bo‘lsa, o‘sha bog‘liqlikni olib tashlash mumkin.
+Image `python:3.13-slim` asosida quriladi. Ovoz egasini tekshirish olib tashlangani uchun og‘ir `sherpa-onnx` bog‘liqligi endi kerak emas va image’ga kirmaydi.
 
 ## Production: Dockersiz joylash
 

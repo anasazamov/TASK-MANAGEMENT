@@ -127,7 +127,9 @@ LOGGING = {
     'formatters': {'standard': {'format': '{asctime} {levelname} {name}: {message}', 'style': '{'}},
     'handlers': {'console': {'class': 'logging.StreamHandler', 'formatter': 'standard'}},
     'root': {'handlers': ['console'], 'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO')},
-    'loggers': {'django.request': {'handlers': ['console'], 'level': 'ERROR', 'propagate': False}},
+    # httpx logs every request URL at INFO, and a Telegram URL carries the bot token.
+    'loggers': {'django.request': {'handlers': ['console'], 'level': 'ERROR', 'propagate': False},
+                'httpx': {'level': 'WARNING'}},
 }
 if LOG_FILE:
     LOGGING['handlers']['file'] = {'class': 'logging.handlers.RotatingFileHandler', 'filename': LOG_FILE,

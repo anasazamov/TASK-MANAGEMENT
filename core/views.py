@@ -584,9 +584,16 @@ def telegram_webhook(request, secret):
     except ValueError:
         return JsonResponse({'ok': True})
     if isinstance(update, dict):
+        # How long Telegram took to bring the update here, against the message's
+        # own send time: a slow bot reply is either this lag or our handling.
+        received = timezone.now()
+        sent = (update.get('message') or {}).get('date')
         # Telegram sends the reply from this very response, so the bot answers
         # without the server calling back out to api.telegram.org.
         answer = telegram.handle(update)
+        if isinstance(sent, int):
+            logger.info('Telegram update lag=%.1fs handled=%.3fs', received.timestamp() - sent,
+                        (timezone.now() - received).total_seconds())
         if answer:
             return JsonResponse(answer)
     return JsonResponse({'ok': True})

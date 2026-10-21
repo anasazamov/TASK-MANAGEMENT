@@ -80,6 +80,19 @@ shu bog'lash orqali taniladi (PIN kodning o'zi o'qilmaydi).
 Domofon ko'rinadigan joyda (`HIKVISION_*` sozlangan) `--file` siz to'g'ridan-to'g'ri o'qiydi.
 Yangi xodimga karta berilganda 1–3-qadamlarni takrorlang.
 
+## 1b. Yuzlarni xodimlar ro'yxatidan (Word) birdan biriktirish
+
+Kadrlar bo'limining jadvali (T/r, F.I.Sh. va tug'ilgan yili, Rasmi, Lavozimi, Telefon):
+```
+python manage.py import_staff_faces "Xodimlar ro'yxati.docx"                    # ko'rish
+python manage.py import_staff_faces "Xodimlar ro'yxati.docx" --likely --create --apply
+```
+Kirill ismlar lotinga o'giriladi va xodimlarga moslanadi; har qator rasmi o'sha xodimning
+yuzi bo'ladi. `--create` hisobi yo'qlarni parolsiz yaratadi (lavozim, telefon bilan),
+`--replace` mavjud yuzni almashtiradi, `--map 26=narziyev` / `--skip 28` qo'lda boshqaradi.
+Tug'ilgan yili va joyi o'qilmaydi va saqlanmaydi. `.doc` uchun serverda LibreOffice kerak —
+yoki Word'da `.docx` qilib saqlang.
+
 ## 2. Yuz taqqoslash (OpenCV — Windows va Linux'da bir xil)
 
 Faqat `opencv-python-headless` kerak (u `requirements.txt` da, tayyor wheel bilan

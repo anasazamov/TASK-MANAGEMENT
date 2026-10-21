@@ -14,6 +14,9 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+# Longest side a missed photo is shrunk to before the second detection try.
+DETECT_SIDE = 1024
+
 _detector = None
 _recognizer = None
 _lock = threading.Lock()
@@ -65,6 +68,13 @@ def embed(image_bytes):
         height, width = image.shape[:2]
         detector.setInputSize((width, height))
         _, faces = detector.detect(image)
+        if (faces is None or len(faces) == 0) and max(height, width) > DETECT_SIDE:
+            # A portrait photo of 3200x2400 holds a face too big for YuNet's anchors;
+            # door frames already work at full size, so shrink only on a miss.
+            scale = DETECT_SIDE / max(height, width)
+            image = cv2.resize(image, (round(width * scale), round(height * scale)), interpolation=cv2.INTER_AREA)
+            detector.setInputSize((image.shape[1], image.shape[0]))
+            _, faces = detector.detect(image)
         if faces is None or len(faces) == 0:
             return None
         largest = max(faces, key=lambda face: face[2] * face[3])  # widest-by-area box

@@ -229,7 +229,11 @@ def poll_once(config, opener, cursor, seen):
                 status = forward(config, event, picture)
             except (urllib.error.URLError, OSError) as error:
                 # Leave it unmarked so the next poll retries it; stop this round.
-                LOG.warning('Forward failed (%s); will retry next poll', type(error).__name__)
+                code = getattr(error, 'code', None)
+                hint = ' (404: server_url secret does not match ATTENDANCE_WEBHOOK_SECRET, or IP not allowed)' \
+                    if code == 404 else ''
+                LOG.warning('Forward failed (%s%s)%s; will retry next poll', type(error).__name__,
+                            ' %s' % code if code else '', hint)
                 return newest, forwarded
             LOG.info('Forwarded %s card=%s emp=%s -> %s', event.get('name') or '?',
                      event.get('cardNo'), event.get('employeeNoString'), status)

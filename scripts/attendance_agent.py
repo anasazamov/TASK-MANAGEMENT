@@ -81,6 +81,46 @@ def acs_search(opener, base, start_iso, end_iso, position, max_results):
         return json.loads(response.read().decode('utf-8', 'replace'))
 
 
+def isapi_search(opener, base, path, cond_key, result_key, list_key):
+    """Every row of a paged ISAPI search; the device returns at most 30 per page."""
+    rows, position = [], 0
+    while True:
+        body = json.dumps({cond_key: {'searchID': 'access-sync', 'searchResultPosition': position,
+                                      'maxResults': 30}}).encode('utf-8')
+        request = urllib.request.Request(base + path, data=body, headers={'Content-Type': 'application/json'},
+                                         method='POST')
+        with opener.open(request, timeout=20) as response:
+            result = json.loads(response.read().decode('utf-8', 'replace')).get(result_key, {})
+        page = result.get(list_key) or []
+        rows.extend(page)
+        if result.get('responseStatusStrg') != 'MORE' or not page:
+            return rows
+        position += len(page)
+
+
+def export_people(config, opener, path):
+    """Write the device's persons and cards to a file for `manage.py sync_access_cards`.
+
+    The cloud server cannot reach the device, so the list travels as a file. The
+    PIN is never read; a PIN opening is matched by the person's employeeNo.
+    """
+    base = device_base(config)
+    users = isapi_search(opener, base, '/ISAPI/AccessControl/UserInfo/Search?format=json',
+                         'UserInfoSearchCond', 'UserInfoSearch', 'UserInfo')
+    cards = isapi_search(opener, base, '/ISAPI/AccessControl/CardInfo/Search?format=json',
+                         'CardInfoSearchCond', 'CardInfoSearch', 'CardInfo')
+    by_person = {}
+    for card in cards:
+        by_person.setdefault(str(card.get('employeeNo', '')), []).append(str(card.get('cardNo', '')))
+    people = [{'employee_no': str(user.get('employeeNo', '')), 'name': user.get('name', ''),
+               'cards': [c for c in by_person.get(str(user.get('employeeNo', '')), []) if c]}
+              for user in users if user.get('employeeNo')]
+    with open(path, 'w', encoding='utf-8') as handle:
+        json.dump({'device': config['device_host'], 'exported_at': datetime.now(TASHKENT).isoformat(timespec='seconds'),
+                   'people': people}, handle, ensure_ascii=False, indent=1)
+    LOG.info('Exported %d person(s), %d card(s) to %s', len(people), len(cards), path)
+
+
 def fetch_bytes(opener, url):
     with opener.open(url, timeout=20) as response:
         return response.read()
@@ -207,10 +247,15 @@ def main():
     parser.add_argument('--config', default=os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                                          'attendance_agent.config.json'))
     parser.add_argument('--once', action='store_true', help='Poll a single time and exit (for testing).')
+    parser.add_argument('--export-users', metavar='FILE',
+                        help='Write the device persons and cards to FILE (for sync_access_cards) and exit.')
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
     config = load_config(args.config)
     opener = device_opener(config)
+    if args.export_users:
+        export_people(config, opener, args.export_users)
+        return 0
     cursor, seen = load_state(config['state_file'])
     LOG.info('Agent started. Device=%s Server=%s Interval=%ss Cursor=%s',
              config['device_host'], config['server_url'], config['interval_seconds'], cursor)

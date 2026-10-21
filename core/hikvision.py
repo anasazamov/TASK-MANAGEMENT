@@ -115,6 +115,40 @@ class MultipartStream:
             yield headers, body
 
 
+def _search(client, path, cond_key, result_key, list_key):
+    """Every row of a paged ISAPI search; the device returns at most 30 per page."""
+    rows, position = [], 0
+    while True:
+        response = client.post(base_url() + path, json={cond_key: {
+            'searchID': 'access-sync', 'searchResultPosition': position, 'maxResults': 30}})
+        response.raise_for_status()
+        result = response.json().get(result_key, {})
+        page = result.get(list_key) or []
+        rows.extend(page)
+        if result.get('responseStatusStrg') != 'MORE' or not page:
+            return rows
+        position += len(page)
+
+
+def people():
+    """The persons enrolled on the device with their cards: [{employee_no, name, cards}].
+
+    A PIN opening reports the person's employeeNo, a card opening its cardNo, so
+    both are kept. The PIN itself is never read.
+    """
+    with httpx.Client(timeout=20, auth=auth(), verify=settings.HIKVISION_VERIFY_TLS) as client:
+        users = _search(client, '/ISAPI/AccessControl/UserInfo/Search?format=json',
+                        'UserInfoSearchCond', 'UserInfoSearch', 'UserInfo')
+        cards = _search(client, '/ISAPI/AccessControl/CardInfo/Search?format=json',
+                        'CardInfoSearchCond', 'CardInfoSearch', 'CardInfo')
+    by_person = {}
+    for card in cards:
+        by_person.setdefault(str(card.get('employeeNo', '')), []).append(str(card.get('cardNo', '')))
+    return [{'employee_no': str(user.get('employeeNo', '')), 'name': user.get('name', ''),
+             'cards': [c for c in by_person.get(str(user.get('employeeNo', '')), []) if c]}
+            for user in users if user.get('employeeNo')]
+
+
 def events(path=None, connect_timeout=10.0, read_timeout=65.0):
     """Open one alertStream connection and yield (headers, body) parts.
 

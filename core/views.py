@@ -1,5 +1,6 @@
 import json
-from datetime import timedelta
+import logging
+from datetime import date, datetime, time, timedelta
 
 from asgiref.sync import sync_to_async
 from django.conf import settings
@@ -16,6 +17,7 @@ from django.db import OperationalError, connection
 from django.db.models import Count, Q
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.crypto import constant_time_compare
 from django.utils.html import escape
@@ -26,13 +28,16 @@ from django.views.decorators.http import require_GET, require_POST
 from . import pages, push, reports, telegram
 from .forms import (ActionForm, AttachmentForm, ControllerForm, DepartmentForm, EmployeeEditForm,
                     EmployeeForm, LoginForm, ParticipantForm, PartActionForm, TaskForm)
-from .models import (DeadlineRequest, Department, Event, PushSubscription, Task, TaskAttachment,
-                     TaskParticipant, User)
+from .models import (AccessEvent, Attendance, AttendanceExcuse, DeadlineRequest, Department, Event, FaceEnrollment,
+                     FaceReview, PushSubscription, Task, TaskAttachment, TaskParticipant, User)
+from . import attendance as attendance_service
 from .permissions import can_add_participants, can_attach, can_control, can_delegate, can_manage
 from .services import add_attachment as add_task_attachment
 from .services import add_participant as add_task_participant
 from .services import create_task, mark_seen, part_action, remove_attachment, require, task_action
 
+
+logger = logging.getLogger(__name__)
 
 LOGIN_ATTEMPTS = 10
 LOGIN_WINDOW = 300
@@ -345,7 +350,216 @@ def employees(request):
         response['Content-Disposition'] = f'attachment; filename="{name}"'
         return response
     return render(request, 'core/employees.html', {'page_title': 'Xodimlar', 'subtitle': 'Topshiriq yuklamasi va muddat holati',
-        'rows': rows, 'week': week if period else '', 'default_week': reports.current_week(), 'period_label': reports.period_label(period)})
+        'tab': 'stats', 'pending_reviews': pending_reviews_for(request.user), 'rows': rows, 'week': week if period else '', 'default_week': reports.current_week(), 'period_label': reports.period_label(period)})
+
+
+UZ_MONTHS = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
+             'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr']
+UZ_WEEKDAYS = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya']
+
+
+def day_chips(day, today, count=14):
+    """Newest-first strip of days around the selected one, never past today.
+
+    It follows the selection: picking a date far back in the date field brings
+    that week into the strip instead of leaving it stuck on the last fortnight.
+    """
+    end = min(day + timedelta(days=count // 2), today)
+    return [{'date': end - timedelta(days=offset), 'selected': end - timedelta(days=offset) == day,
+             'weekday': UZ_WEEKDAYS[(end - timedelta(days=offset)).weekday()],
+             'today': end - timedelta(days=offset) == today} for offset in range(count)]
+
+
+def pending_reviews_for(user):
+    """Open face reviews this user decides on — the badge on the Davomat tab."""
+    if not user.can_oversee:
+        return 0
+    return FaceReview.objects.filter(state=FaceReview.State.PENDING,
+                                     user__in=attendance_service.visible_employees(user)).count()
+
+
+@login_required
+def attendance_daily(request):
+    require(request.user.can_assign or request.user.can_oversee)
+    people = list(attendance_service.visible_employees(request.user).select_related('department').order_by('full_name'))
+    today = timezone.localdate()
+    try:
+        day = date.fromisoformat(request.GET.get('date', '')) if request.GET.get('date') else today
+    except ValueError:
+        day = today
+    if day > today:
+        day = today
+    records = {a.user_id: a for a in Attendance.objects.filter(user__in=people, date=day)}
+    # The latest decided review per attendance: who decided and why, for audit.
+    decisions = {review.attendance_id: review for review in FaceReview.objects.filter(
+        attendance__in=records.values()).exclude(state=FaceReview.State.PENDING)
+        .select_related('resolved_by').order_by('resolved_at')}
+    excuses = {e.user_id: e for e in AttendanceExcuse.objects.filter(user__in=people, date=day)
+               .select_related('created_by')}
+    rows = []
+    for person in people:
+        attendance = records.get(person.pk)
+        late = attendance_service.late_minutes(attendance)
+        rows.append({'user': person, 'attendance': attendance, 'excuse': excuses.get(person.pk),
+                     'review': decisions.get(attendance.pk) if attendance else None,
+                     'late': late, 'late_label': attendance_service.duration_label(late) if late else ''})
+    if request.GET.get('format') == 'xlsx':
+        name = f'davomat-{day:%Y%m%d}.xlsx'
+        response = HttpResponse(reports.attendance_workbook(rows, day, request.user.short_name),
+                                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="{name}"'
+        return response
+    tally = {key: 0 for key in [*Attendance.Status.values, 'late', 'excused', 'absent']}
+    for row in rows:
+        if row['attendance']:
+            tally[row['attendance'].status] += 1
+            tally['late'] += bool(row['late'])
+        else:
+            tally['excused' if row['excuse'] else 'absent'] += 1
+    # The day block is swapped in place by static/js/attendance.js; the full page
+    # stays the fallback without JavaScript.
+    template = 'core/_attendance_day.html' if request.GET.get('partial') == '1' else 'core/employees_attendance.html'
+    return render(request, template, {
+        'page_title': 'Xodimlar', 'subtitle': 'Kunlik davomat', 'tab': 'attendance',
+        'pending_reviews': pending_reviews_for(request.user),
+        'rows': rows, 'day': day, 'is_today': day == today, 'tally': tally, 'absent': tally['absent'],
+        'excuse_kinds': AttendanceExcuse.Kind.choices, 'late_hour': settings.ATTENDANCE_LATE_HOUR,
+        'chips': day_chips(day, today), 'day_label': f'{day.day} {UZ_MONTHS[day.month - 1].lower()} {day.year}',
+        'weekday_label': ['Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba', 'Yakshanba'][day.weekday()],
+        'day_start_hour': settings.ATTENDANCE_DAY_START_HOUR})
+
+
+@login_required
+@require_POST
+def attendance_excuse(request):
+    require(request.user.can_assign or request.user.can_oversee)
+    employee = get_object_or_404(attendance_service.visible_employees(request.user), pk=request.POST.get('employee', ''))
+    try:
+        start = date.fromisoformat(request.POST.get('date', ''))
+        end = date.fromisoformat(request.POST['until']) if request.POST.get('until') else None
+        expected = request.POST.get('expected_at') or None
+        expected = datetime.strptime(expected, '%H:%M').time() if expected else None
+    except ValueError:
+        messages.error(request, 'Sana yoki vaqt noto‘g‘ri.')
+        return redirect('attendance_daily')
+    try:
+        days = attendance_service.set_excuse(request.user, employee, request.POST.get('kind', ''), start, end,
+                                             request.POST.get('note', ''), expected)
+    except ValidationError as error:
+        messages.error(request, ' '.join(error.messages))
+    else:
+        messages.success(request, f'{employee.full_name}: uzrli sabab {days} kunga kiritildi.')
+    return redirect(f"{reverse('attendance_daily')}?date={start:%Y-%m-%d}")
+
+
+@login_required
+@require_POST
+def attendance_excuse_delete(request, pk):
+    require(request.user.can_assign or request.user.can_oversee)
+    excuse = get_object_or_404(AttendanceExcuse.objects.filter(
+        user__in=attendance_service.visible_employees(request.user)), pk=pk)
+    day = excuse.date
+    excuse.delete()
+    messages.success(request, 'Uzrli sabab bekor qilindi.')
+    return redirect(f"{reverse('attendance_daily')}?date={day:%Y-%m-%d}")
+
+
+@login_required
+def access_events(request):
+    require(request.user.can_assign or request.user.can_oversee)
+    people = attendance_service.visible_employees(request.user)
+    now = timezone.localtime()
+    default_from = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    def parse(value, fallback):
+        try:
+            return timezone.make_aware(datetime.strptime(value, '%Y-%m-%dT%H:%M'))
+        except (ValueError, TypeError):
+            return fallback
+
+    start = parse(request.GET.get('from'), default_from)
+    end = parse(request.GET.get('to'), now)
+    events = AccessEvent.objects.filter(happened_at__gte=start, happened_at__lte=end).select_related('user', 'user__department')
+    # Everyone in scope, plus unmatched events for those who see the whole org.
+    if request.user.is_chair or request.user.can_oversee:
+        events = events.filter(Q(user__in=people) | Q(user__isnull=True))
+    else:
+        events = events.filter(user__in=people)
+    return render(request, 'core/employees_events.html', {
+        'page_title': 'Xodimlar', 'subtitle': 'Eshik ochilishlari', 'tab': 'events',
+        'pending_reviews': pending_reviews_for(request.user),
+        'events': Paginator(events, 50).get_page(request.GET.get('page')),
+        'from_value': timezone.localtime(start).strftime('%Y-%m-%dT%H:%M'),
+        'to_value': timezone.localtime(end).strftime('%Y-%m-%dT%H:%M')})
+
+
+@login_required
+def face_enrollments(request):
+    require(request.user.can_oversee)
+    people = attendance_service.visible_employees(request.user)
+    if request.method == 'POST':
+        person = get_object_or_404(people, pk=request.POST.get('employee', ''))
+        photo = request.FILES.get('photo')
+        if not photo or photo.size > 10 * 1024 * 1024:
+            messages.error(request, 'Surat tanlang (10 MB gacha).')
+        else:
+            try:
+                attendance_service.enroll_face(person, photo)
+            except ValidationError as error:
+                messages.error(request, ' '.join(error.messages))
+            else:
+                messages.success(request, f'{person.full_name} yuzi biriktirildi.')
+        return redirect('face_enrollments')
+    rows = people.select_related('department', 'face_enrollment').order_by('full_name')
+    return render(request, 'core/employees_faces.html', {
+        'page_title': 'Xodimlar', 'subtitle': 'Davomat — yuzlarni biriktirish', 'tab': 'faces', 'people': rows,
+        'pending_reviews': pending_reviews_for(request.user)})
+
+
+@login_required
+def face_reviews(request):
+    require(request.user.can_oversee)
+    scope = FaceReview.objects.filter(user__in=attendance_service.visible_employees(request.user))
+    reviews = scope.filter(state=FaceReview.State.PENDING).select_related('user', 'event', 'attendance')
+    # Decided reviews stay visible: who decided, when, and why — the audit trail.
+    history = (scope.exclude(state=FaceReview.State.PENDING)
+               .select_related('user', 'event', 'resolved_by').order_by('-resolved_at')[:50])
+    return render(request, 'core/employees_reviews.html', {
+        'page_title': 'Xodimlar', 'subtitle': 'Davomat — yuz tekshiruvi', 'tab': 'reviews',
+        'reviews': reviews, 'history': history, 'pending_reviews': len(reviews)})
+
+
+@login_required
+@require_POST
+def face_review_action(request, pk):
+    require(request.user.can_oversee)
+    get_object_or_404(FaceReview.objects.filter(user__in=attendance_service.visible_employees(request.user)), pk=pk)
+    approve = request.POST.get('decision') == 'approve'
+    try:
+        attendance_service.resolve_review(request.user, pk, approve, request.POST.get('reason', ''))
+    except ValidationError as error:
+        messages.error(request, ' '.join(error.messages))
+    else:
+        messages.success(request, 'Yo‘qlama tasdiqlandi.' if approve else 'Rad etildi. Xodimga xabar yuborildi.')
+    return redirect('face_reviews')
+
+
+@login_required
+def review_capture(request, pk):
+    require(request.user.can_oversee)
+    review = get_object_or_404(FaceReview.objects.filter(
+        user__in=attendance_service.visible_employees(request.user)), pk=pk)
+    if not review.event.photo:
+        raise Http404
+    return streamed(FileResponse(review.event.photo.open('rb'), content_type='image/jpeg'))
+
+
+@login_required
+def enrollment_photo(request, pk):
+    require(request.user.can_oversee)
+    enrollment = get_object_or_404(FaceEnrollment.objects.filter(
+        user__in=attendance_service.visible_employees(request.user)), pk=pk)
+    return streamed(FileResponse(enrollment.photo.open('rb'), content_type='image/jpeg'))
 
 
 @never_cache
@@ -375,6 +589,29 @@ def telegram_webhook(request, secret):
         answer = telegram.handle(update)
         if answer:
             return JsonResponse(answer)
+    return JsonResponse({'ok': True})
+
+
+@csrf_exempt
+@require_POST
+@never_cache
+def attendance_hook(request, secret):
+    """The door station pushes each access event here (phase one: capture only).
+
+    The device has no session; the secret in the path and an optional source-IP
+    allowlist are the only proof the POST is genuine. We always answer 200 so the
+    device does not disable the host over a transient error on our side.
+    """
+    if (not settings.ATTENDANCE_WEBHOOK_SECRET
+            or not constant_time_compare(secret, settings.ATTENDANCE_WEBHOOK_SECRET)):
+        raise Http404
+    from . import attendance
+    if not attendance.source_allowed(request):
+        raise Http404
+    try:
+        attendance.record(request)
+    except Exception:
+        logger.exception('Attendance event ingest failed')
     return JsonResponse({'ok': True})
 
 

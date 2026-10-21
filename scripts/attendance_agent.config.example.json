@@ -1,0 +1,19 @@
+{
+  "_comment": "Nusxa oling -> attendance_agent.config.json, qiymatlarni to'ldiring. Bu faylni git'ga qo'ymang.",
+
+  "device_host": "192.168.1.50",
+  "device_port": 80,
+  "device_scheme": "http",
+  "device_user": "admin",
+  "device_password": "PAROL",
+
+  "server_url": "https://SIZNING-DOMEN/attendance/hook/ATTENDANCE_WEBHOOK_SECRET/",
+  "server_verify_tls": true,
+
+  "interval_seconds": 1,
+  "lookback_minutes": 5,
+  "max_results": 30,
+  "fallback_snapshot": true,
+  "snapshot_path": "/ISAPI/Streaming/channels/101/picture",
+  "state_file": "attendance_agent.state.json"
+}

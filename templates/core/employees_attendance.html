@@ -1,0 +1,14 @@
+{% extends 'base.html' %}{% load static ui %}{% block content %}
+{% include 'core/_employee_tabs.html' %}
+<div class="list-toolbar report-toolbar">
+  <form class="report-form" method="get" data-att-form>
+    <label for="att-date">Sana</label>
+    <input id="att-date" type="date" name="date" value="{{ day|date:'Y-m-d' }}" max="{% now 'Y-m-d' %}" data-att-date>
+    <noscript><button class="button secondary" type="submit">Ko‘rsatish</button></noscript>
+  </form>
+</div>
+<div class="att-root" data-att-root data-url="{% url 'attendance_daily' %}">
+  {% include 'core/_attendance_day.html' %}
+</div>
+{% endblock %}
+{% block extra_scripts %}<script src="{% static 'js/attendance.js' %}" defer></script>{% endblock %}

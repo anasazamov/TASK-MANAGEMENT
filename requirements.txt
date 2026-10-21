@@ -12,3 +12,6 @@ cryptography>=50,<51
 openpyxl>=3.1,<4
 django-storages[s3]>=1.14,<2
 pywebpush>=2,<3
+# Yuz taqqoslash (OpenCV YuNet + SFace). Wheel bilan keladi, kompilyatsiya kerak emas.
+numpy>=2,<3
+opencv-python-headless>=4.9,<6

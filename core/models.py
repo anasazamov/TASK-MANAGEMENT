@@ -401,3 +401,185 @@ class AgentProposal(models.Model):
     expires_at = models.DateTimeField()
     state = models.CharField(max_length=12, default='pending')
     result = models.JSONField(null=True)
+
+
+class AccessCard(models.Model):
+    """A card or device person-id enrolled in the door station, mapped to a user.
+
+    Cards are enrolled on the device itself; here we only record which card (or
+    device employee id) belongs to which of our users, so an incoming event can
+    name a real person. A user may hold more than one card.
+    """
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='access_cards')
+    card_no = models.CharField('Karta raqami', max_length=64, blank=True)
+    device_employee_no = models.CharField('Qurilmadagi xodim ID', max_length=64, blank=True)
+    label = models.CharField('Qurilmadagi nom', max_length=180, blank=True)
+    active = models.BooleanField('Faol', default=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['user__full_name', 'pk']
+        constraints = [
+            models.UniqueConstraint(fields=['card_no'], condition=~Q(card_no=''), name='unique_access_card_no'),
+            models.UniqueConstraint(fields=['device_employee_no'], condition=~Q(device_employee_no=''),
+                                    name='unique_access_device_employee_no'),
+        ]
+
+    def __str__(self):
+        return f'{self.user.short_name}: {self.card_no or self.device_employee_no}'
+
+
+def access_photo_path(instance, filename):
+    return f'attendance/{timezone.now():%Y/%m}/{uuid.uuid4().hex}.jpg'
+
+
+class AccessEvent(models.Model):
+    """One door-open event from the station: a person presenting a card or PIN.
+
+    The photo is a face snapshot taken at that moment. It is normally discarded
+    (the station is backlit, so most snapshots are dark): it is kept only when the
+    first-entry face check was not confident and a human must review it.
+    """
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                             related_name='access_events')
+    card = models.ForeignKey(AccessCard, null=True, blank=True, on_delete=models.SET_NULL, related_name='events')
+    card_no = models.CharField(max_length=64, blank=True)
+    employee_no = models.CharField(max_length=64, blank=True)
+    device_name = models.CharField(max_length=180, blank=True)
+    happened_at = models.DateTimeField('Hodisa vaqti')
+    major = models.IntegerField(default=0)
+    minor = models.IntegerField(default=0)
+    door_no = models.IntegerField(default=0)
+    dedupe_key = models.CharField(max_length=190, unique=True)
+    photo = models.FileField('Yuz surati', upload_to=access_photo_path, max_length=300, null=True, blank=True)
+    face_confidence = models.FloatField('Yuz mosligi', null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['-happened_at', '-id']
+        indexes = [models.Index(fields=['happened_at']), models.Index(fields=['user', 'happened_at'])]
+
+    def __str__(self):
+        return f'{self.device_name or self.card_no}: {self.happened_at:%d.%m.%Y %H:%M}'
+
+
+class Attendance(models.Model):
+    """Per-user daily roll-up, built from the day's access events from 07:00."""
+    class Status(models.TextChoices):
+        PRESENT = 'present', 'Keldi'
+        REVIEW = 'review', 'Tekshiruvda'
+        REJECTED = 'rejected', 'Rad etildi'
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='attendances')
+    date = models.DateField('Sana')
+    first_entry_at = models.DateTimeField('Birinchi kirish', null=True, blank=True)
+    last_entry_at = models.DateTimeField('Oxirgi kirish', null=True, blank=True)
+    entry_count = models.PositiveIntegerField('Kirishlar soni', default=0)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PRESENT)
+    first_event = models.ForeignKey(AccessEvent, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-date']
+        constraints = [models.UniqueConstraint(fields=['user', 'date'], name='one_attendance_per_day')]
+
+    def __str__(self):
+        return f'{self.user.short_name} — {self.date}'
+
+
+class AttendanceAlert(models.Model):
+    """Marks a once-a-day bot alert as sent, so re-runs never repeat it."""
+    class Kind(models.TextChoices):
+        ARRIVAL = 'arrival', 'Keldi (kotibga)'
+        LATE = 'late', 'Kechikish (xodimga)'
+        ABSENTEES = 'absentees', 'Kelmaganlar ro‘yxati (kotibga)'
+        REVIEW = 'review', 'Tekshiruv (kotibga)'
+        NOT_COUNTED = 'not_counted', 'Hisobga olinmadi (xodimga)'
+
+    subject = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='attendance_alerts')
+    date = models.DateField()
+    kind = models.CharField(max_length=16, choices=Kind.choices)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['subject', 'date', 'kind'], name='one_attendance_alert')]
+
+
+def face_photo_path(instance, filename):
+    return f'faces/{instance.user_id}/{uuid.uuid4().hex}.jpg'
+
+
+class FaceEnrollment(models.Model):
+    """One enrolled face per user: a clear reference photo and its embedding.
+
+    The embedding is what the first-entry check compares against; it is computed
+    once on the server when the photo is uploaded.
+    """
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='face_enrollment')
+    photo = models.FileField('Yuz surati', upload_to=face_photo_path, max_length=300)
+    embedding = models.JSONField(editable=False)
+    model = models.CharField(max_length=64, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.user.short_name} yuzi'
+
+
+class FaceReview(models.Model):
+    """A low-confidence first-entry capture awaiting the secretary's decision."""
+    class State(models.TextChoices):
+        PENDING = 'pending', 'Kutilmoqda'
+        APPROVED = 'approved', 'Tasdiqlandi'
+        REJECTED = 'rejected', 'Rad etildi'
+
+    event = models.OneToOneField(AccessEvent, on_delete=models.CASCADE, related_name='face_review')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='face_reviews')
+    attendance = models.ForeignKey(Attendance, null=True, blank=True, on_delete=models.SET_NULL, related_name='reviews')
+    confidence = models.FloatField(null=True, blank=True)
+    state = models.CharField(max_length=12, choices=State.choices, default=State.PENDING)
+    # Kept for audit: why the secretary decided as she did (required to reject).
+    reason = models.TextField('Sabab', blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class AttendanceExcuse(models.Model):
+    """A known reason someone is away or late on a given day, entered by staff.
+
+    One per person per day; a multi-day absence is stored day by day so each day of
+    the attendance tab answers for itself. Who entered it is kept for audit.
+    """
+    class Kind(models.TextChoices):
+        SICK = 'sick', 'Kasal'
+        LATE = 'late', 'Kechroq keladi'
+        TRIP = 'trip', 'Xizmat safari'
+        LEAVE = 'leave', 'Ta’til'
+        OTHER = 'other', 'Boshqa sabab'
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='attendance_excuses')
+    date = models.DateField('Sana')
+    kind = models.CharField('Sabab', max_length=12, choices=Kind.choices)
+    note = models.CharField('Izoh', max_length=300, blank=True)
+    expected_at = models.TimeField('Kelish vaqti', null=True, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='+')
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['date']
+        constraints = [models.UniqueConstraint(fields=['user', 'date'], name='one_attendance_excuse_per_day')]
+
+    def __str__(self):
+        return f'{self.user.short_name} — {self.date}: {self.label}'
+
+    @property
+    def label(self):
+        text = self.get_kind_display()
+        if self.kind == self.Kind.LATE and self.expected_at:
+            text += f' ({self.expected_at:%H:%M} da)'
+        return f'{text}: {self.note}' if self.note else text

@@ -1,0 +1,47 @@
+{% extends 'base.html' %}{% load ui %}{% block content %}
+{% include 'core/_employee_tabs.html' %}
+<div class="section-heading"><h2>Yuz tekshiruvi <span class="count-pill">{{ reviews|length }}</span></h2></div>
+<p class="help-text" style="margin-bottom:20px">Kun birinchi kirishida yuz mosligi past bo‘lgan yoki kadrda yuz topilmagan holatlar. Suratlarni solishtiring: haqiqatan o‘sha xodim bo‘lsa «Tasdiqlash», aks holda sababini yozib «Rad etish». Qaror va sabab audit uchun saqlanadi.</p>
+{% for review in reviews %}
+<div class="card" style="padding:18px;margin-bottom:16px;display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+  <div style="display:flex;gap:14px">
+    <figure style="margin:0;text-align:center"><img src="{% url 'enrollment_photo' review.user.face_enrollment.pk %}" alt="Biriktirilgan yuz" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><figcaption class="muted" style="font-size:12px;margin-top:5px">Biriktirilgan</figcaption></figure>
+    <figure style="margin:0;text-align:center"><img src="{% url 'review_capture' review.pk %}" alt="Kirishdagi surat" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><figcaption class="muted" style="font-size:12px;margin-top:5px">Kirishda</figcaption></figure>
+  </div>
+  <div style="flex:1;min-width:180px">
+    <strong>{{ review.user.full_name }}</strong>
+    <p class="muted" style="font-size:13px;margin-top:4px">{{ review.event.happened_at|date:'d.m.Y H:i:s' }}</p>
+    <p class="muted" style="font-size:13px">{% if review.confidence is None %}<strong>Kadrda yuz topilmadi</strong>{% else %}Moslik: <strong>{{ review.confidence|floatformat:2 }}</strong>{% endif %}</p>
+    {% if review.attendance.status == 'present' %}<p class="help-text" style="margin-top:6px">Kun boshqa kirish bilan tasdiqlangan (kelgan vaqti {{ review.attendance.first_entry_at|date:'H:i' }}).{% if review.event.happened_at < review.attendance.first_entry_at %} Tasdiqlasangiz, kelgan vaqti {{ review.event.happened_at|date:'H:i' }} ga suriladi.{% endif %}</p>{% endif %}
+  </div>
+  <div style="display:grid;gap:10px;min-width:260px;margin-left:auto">
+    <form method="post" action="{% url 'face_review_action' review.pk %}">
+      {% csrf_token %}<input type="hidden" name="decision" value="approve">
+      <button class="button primary" type="submit" style="width:100%">Tasdiqlash</button>
+    </form>
+    <form method="post" action="{% url 'face_review_action' review.pk %}" style="display:grid;gap:8px">
+      {% csrf_token %}<input type="hidden" name="decision" value="reject">
+      <textarea name="reason" rows="2" required maxlength="2000" placeholder="Rad etish sababi (majburiy)"></textarea>
+      <button class="button danger-button" type="submit">Rad etish</button>
+    </form>
+  </div>
+</div>
+{% empty %}
+<div class="empty-state">{% icon 'check' %}<h2>Tekshiruv yo‘q</h2><p>Hozircha ko‘rib chiqiladigan yuz tekshiruvi yo‘q.</p></div>
+{% endfor %}
+
+<div class="section-heading" style="margin-top:32px"><h2>Ko‘rib chiqilganlar <span class="count-pill">{{ history|length }}</span></h2></div>
+<div class="card stats-scroll"><table class="stats-table">
+  <thead><tr><th class="name">Xodim</th><th>Kirish vaqti</th><th>Moslik</th><th>Qaror</th><th class="name">Sabab</th><th>Kim</th><th>Qachon</th><th>Surat</th></tr></thead>
+  <tbody>{% for item in history %}<tr>
+    <td class="name">{{ item.user.full_name }}</td>
+    <td>{{ item.event.happened_at|date:'d.m.Y H:i' }}</td>
+    <td>{% if item.confidence is None %}yuz yo‘q{% else %}{{ item.confidence|floatformat:2 }}{% endif %}</td>
+    <td>{% if item.state == 'rejected' %}<span class="status-badge overdue">Rad etildi</span>{% else %}<span class="status-badge accepted">Tasdiqlandi</span>{% endif %}</td>
+    <td class="name">{{ item.reason|default:'—' }}</td>
+    <td>{{ item.resolved_by.short_name|default:'avtomatik' }}</td>
+    <td>{{ item.resolved_at|date:'d.m.Y H:i' }}</td>
+    <td>{% if item.event.photo %}<a class="text-link" href="{% url 'review_capture' item.pk %}" target="_blank">Ko‘rish</a>{% else %}—{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="8" class="empty">Hali ko‘rib chiqilgan tekshiruv yo‘q.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

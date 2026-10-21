@@ -1,0 +1,62 @@
+<div data-att-block data-date="{{ day|date:'Y-m-d' }}" data-today="{{ is_today|yesno:'1,0' }}">
+<div class="list-toolbar att-chips" aria-label="Kunlar">
+  {% for chip in chips %}<a class="button mini {% if chip.selected %}primary{% else %}secondary{% endif %}" href="?date={{ chip.date|date:'Y-m-d' }}" data-att-day="{{ chip.date|date:'Y-m-d' }}"{% if chip.selected %} aria-current="date"{% endif %}>{{ chip.date|date:'d.m' }} <small>{% if chip.today %}bugun{% else %}{{ chip.weekday }}{% endif %}</small></a>{% endfor %}
+</div>
+<div class="section-heading">
+  <h2>{{ day_label }} <span class="count-pill">{{ weekday_label }}</span></h2>
+  <a class="button mini primary" href="?date={{ day|date:'Y-m-d' }}&amp;format=xlsx">Excel yuklab olish</a>
+</div>
+<div class="att-summary">
+  <span class="status-badge accepted">Keldi: <strong>{{ tally.present }}</strong></span>
+  <span class="status-badge overdue">Kechikdi: <strong>{{ tally.late }}</strong></span>
+  <span class="status-badge submitted">Tekshiruvda: <strong>{{ tally.review }}</strong></span>
+  <span class="status-badge overdue">Rad etildi: <strong>{{ tally.rejected }}</strong></span>
+  <span class="status-badge excused">Uzrli: <strong>{{ tally.excused }}</strong></span>
+  <span class="status-badge">Kelmadi: <strong>{{ absent }}</strong></span>
+</div>
+<div class="card stats-scroll"><table class="stats-table">
+  <thead><tr><th>T/R</th><th class="name">F.I.Sh.</th><th>Kirishlar soni</th><th>Birinchi kirish</th><th>Oxirgi kirish</th><th>Kechikish</th><th>Holat</th><th class="name">Uzrli sabab</th></tr></thead>
+  <tbody>{% for row in rows %}<tr>
+    <td>{{ forloop.counter }}</td>
+    <td class="name">{{ row.user.full_name }}{% if row.user.department %}<small class="muted"> · {{ row.user.department.name }}</small>{% endif %}</td>
+    {% if row.attendance %}
+      <td>{{ row.attendance.entry_count }}</td>
+      <td>{{ row.attendance.first_entry_at|date:'H:i' }}</td>
+      <td>{{ row.attendance.last_entry_at|date:'H:i' }}</td>
+      <td>{% if row.late %}<span class="late-label">+{{ row.late_label }}</span>{% if row.excuse.kind == 'late' %}<small class="muted" style="display:block">uzrli</small>{% endif %}{% else %}—{% endif %}</td>
+      <td style="white-space:normal;max-width:260px">
+        {% if row.attendance.status == 'review' %}<span class="status-badge submitted">Tekshiruvda</span>
+        {% elif row.attendance.status == 'rejected' %}<span class="status-badge overdue">Rad etildi</span>
+        {% elif row.late %}<span class="status-badge overdue">Kechikdi</span>
+        {% else %}<span class="status-badge accepted">Keldi</span>{% endif %}
+        {% if row.review %}<small class="muted" style="display:block;margin-top:5px;text-align:left">{% if row.review.reason %}Sabab: {{ row.review.reason }}<br>{% endif %}{{ row.review.get_state_display }}: {{ row.review.resolved_by.short_name|default:'avtomatik' }}, {{ row.review.resolved_at|date:'d.m.Y H:i' }}</small>{% endif %}
+      </td>
+    {% else %}
+      <td>—</td><td>—</td><td>—</td><td>—</td>
+      <td>{% if row.excuse %}<span class="status-badge excused">Uzrli</span>{% else %}<span class="status-badge">Kelmadi</span>{% endif %}</td>
+    {% endif %}
+    <td class="name excuse-cell">
+      {% if row.excuse %}
+        <strong>{{ row.excuse.label }}</strong>
+        <small class="muted" style="display:block">kiritdi: {{ row.excuse.created_by.short_name|default:'—' }}, {{ row.excuse.created_at|date:'d.m H:i' }}</small>
+        <form method="post" action="{% url 'attendance_excuse_delete' row.excuse.pk %}" style="margin-top:4px">{% csrf_token %}<button class="button mini secondary" type="submit">Bekor qilish</button></form>
+      {% else %}
+        <details class="excuse">
+          <summary>Uzr kiritish</summary>
+          <form method="post" action="{% url 'attendance_excuse' %}" class="excuse-form">
+            {% csrf_token %}
+            <input type="hidden" name="employee" value="{{ row.user.pk }}">
+            <input type="hidden" name="date" value="{{ day|date:'Y-m-d' }}">
+            <label>Sabab<select name="kind" required>{% for value, label in excuse_kinds %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
+            <label>Kelish vaqti <span class="muted">(«Kechroq keladi» uchun)</span><input type="time" name="expected_at"></label>
+            <label>Qaysi sanagacha <span class="muted">(bir necha kun bo‘lsa)</span><input type="date" name="until" min="{{ day|date:'Y-m-d' }}"></label>
+            <label>Izoh<input type="text" name="note" maxlength="300" placeholder="Masalan: 11:00 dan keyin kelaman dedi"></label>
+            <button class="button mini primary" type="submit">Saqlash</button>
+          </form>
+        </details>
+      {% endif %}
+    </td>
+  </tr>{% empty %}<tr><td colspan="8" class="empty">Ko‘rinadigan xodim yo‘q.</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="help-text stats-note">Yo‘qlama Toshkent vaqti bilan {{ day_start_hour }}:00 dan boshlab hisoblanadi; {{ late_hour }}:00 dan keyin kelganlar «Kechikdi» deb belgilanadi. Uzrli sababi kiritilgan xodimga kechikish xabari yuborilmaydi.{% if is_today %} Bugungi ro‘yxat o‘zi yangilanib turadi.{% endif %}</p>
+</div>

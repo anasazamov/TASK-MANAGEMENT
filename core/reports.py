@@ -93,3 +93,61 @@ def workbook(rows, period, prepared_by):
     buffer = io.BytesIO()
     book.save(buffer)
     return buffer.getvalue()
+
+
+ATTENDANCE_STATUS = {'present': 'Keldi', 'review': 'Tekshiruvda', 'rejected': 'Rad etildi'}
+ATTENDANCE_COLUMNS = [('T/R', 7), ('F.I.Sh.', 40), ('Bo‘linma', 26), ('Kirishlar soni', 15),
+                      ('Birinchi kirish', 16), ('Oxirgi kirish', 16), ('Kechikish', 16), ('Holat', 16),
+                      ('Qaror / sabab', 44), ('Uzrli sabab', 36)]
+
+
+def attendance_workbook(rows, day, prepared_by):
+    """Daily attendance (one row per employee) as an .xlsx, like the stats sheet."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, Side
+    from openpyxl.utils import get_column_letter
+
+    book = Workbook()
+    sheet = book.active
+    sheet.title = 'Davomat'
+    thin = Side(style='thin')
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    center = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    for index, (_, width) in enumerate(ATTENDANCE_COLUMNS, 1):
+        sheet.column_dimensions[get_column_letter(index)].width = width
+    sheet['C1'] = 'Kunlik davomat'
+    sheet['C1'].font = Font(name='Times New Roman', size=14, bold=True)
+    sheet['C2'] = f'Sana: {day:%d.%m.%Y}'
+    sheet['C2'].font = Font(name='Times New Roman', size=14)
+    for index, (title, _) in enumerate(ATTENDANCE_COLUMNS, 1):
+        cell = sheet.cell(row=4, column=index, value=title)
+        cell.font = Font(name='Times New Roman', size=12, bold=True)
+        cell.alignment, cell.border = center, border
+    for number, row in enumerate(rows, 1):
+        attendance = row['attendance']
+        values = [number, row['user'].full_name, str(row['user'].department or '—'),
+                  attendance.entry_count if attendance else 0,
+                  timezone.localtime(attendance.first_entry_at).strftime('%H:%M') if attendance and attendance.first_entry_at else '—',
+                  timezone.localtime(attendance.last_entry_at).strftime('%H:%M') if attendance and attendance.last_entry_at else '—',
+                  f"+{row['late_label']}" if row.get('late') else '—']
+        excuse = row.get('excuse')
+        if not attendance:
+            values.append('Uzrli' if excuse else 'Kelmadi')
+        else:
+            values.append('Kechikdi' if row.get('late') else ATTENDANCE_STATUS.get(attendance.status, ''))
+        review = row.get('review')
+        values.append(f'{review.get_state_display()} ({review.resolved_by.short_name if review.resolved_by else "avtomatik"}, '
+                      f'{timezone.localtime(review.resolved_at):%d.%m.%Y %H:%M})'
+                      + (f': {review.reason}' if review.reason else '') if review else '')
+        values.append(excuse.label if excuse else '')
+        for index, value in enumerate(values, 1):
+            cell = sheet.cell(row=4 + number, column=index, value=value)
+            cell.font = Font(name='Times New Roman', size=13)
+            text = index in (2, 9, 10)
+            cell.alignment = Alignment(horizontal='left' if text else 'center', vertical='center', wrap_text=text)
+            cell.border = border
+    sheet.cell(row=4 + len(rows) + 3, column=3, value=prepared_by).font = Font(name='Times New Roman', size=13)
+    sheet.print_options.horizontalCentered = True
+    buffer = io.BytesIO()
+    book.save(buffer)
+    return buffer.getvalue()

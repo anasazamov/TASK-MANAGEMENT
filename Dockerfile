@@ -16,6 +16,9 @@ WORKDIR /app
 COPY --chown=app:app . .
 # Static files are baked in; media and logs are volumes the container writes to.
 RUN mkdir -p /app/media /app/logs && chown -R app:app /app/media /app/logs
+# Face models for the attendance check (YuNet + SFace, ~39 MB). Without them the app
+# still runs, but attendance falls back to card-only.
+RUN python scripts/setup_face_models.py && chown -R app:app /app/face_models
 USER app
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \

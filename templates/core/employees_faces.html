@@ -1,0 +1,25 @@
+{% extends 'base.html' %}{% load ui %}{% block content %}
+{% include 'core/_employee_tabs.html' %}
+<div class="section-heading"><h2>Yuzlarni biriktirish</h2></div>
+<div class="card" style="padding:20px;margin-bottom:24px">
+  <form method="post" enctype="multipart/form-data" class="report-form" style="flex-wrap:wrap">
+    {% csrf_token %}
+    <label for="face-emp">Xodim</label>
+    <select id="face-emp" name="employee" data-search required>
+      {% for person in people %}<option value="{{ person.pk }}">{{ person.full_name }}{% if person.department %} — {{ person.department.name }}{% endif %}</option>{% endfor %}
+    </select>
+    <input type="file" name="photo" accept="image/*" required>
+    <button class="button primary" type="submit">Biriktirish</button>
+  </form>
+  <p class="help-text" style="margin-top:12px">Aniq, yorug‘ va to‘g‘ri qaragan surat yuklang. Yuz server tomonida tahlil qilinadi va faqat belgisi (embedding) hamda surat saqlanadi.</p>
+</div>
+<div class="card stats-scroll"><table class="stats-table">
+  <thead><tr><th>T/R</th><th class="name">F.I.Sh.</th><th>Bo‘linma</th><th>Yuz holati</th></tr></thead>
+  <tbody>{% for person in people %}<tr>
+    <td>{{ forloop.counter }}</td>
+    <td class="name">{{ person.full_name }}</td>
+    <td>{{ person.department.name|default:'—' }}</td>
+    <td>{% if person.face_enrollment %}<span class="status-badge accepted">Biriktirilgan</span> <a class="text-link" href="{% url 'enrollment_photo' person.face_enrollment.pk %}" target="_blank">Ko‘rish</a>{% else %}<span class="status-badge">Biriktirilmagan</span>{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="4" class="empty">Ko‘rinadigan xodim yo‘q.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

@@ -20,3 +20,11 @@ docs/
 tests/
 artifacts/
 node_modules
+venv/
+# Attendance: local secrets and personal data never go into the image.
+scripts/attendance_agent.config.json
+scripts/attendance_agent.state.json
+hikvision-httphost.xml
+attendance-capture/
+face_models/
+docker-compose.override.yml

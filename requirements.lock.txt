@@ -26,7 +26,9 @@ idna==3.19
 jiter==0.17.0
 jmespath==1.1.0
 multidict==6.9.0
+numpy==2.5.4
 openai==2.54.0
+opencv-python-headless==5.0.0.93
 openpyxl==3.1.5
 propcache==0.5.4
 py-vapid==1.9.4

@@ -1,0 +1,26 @@
+{% extends 'base.html' %}{% load ui %}{% block content %}
+{% include 'core/_employee_tabs.html' %}
+<div class="section-heading"><h2>Eshik ochilishlari <span class="count-pill">{{ events.paginator.count }}</span></h2></div>
+<div class="list-toolbar report-toolbar">
+  <form class="report-form" method="get">
+    <label for="ev-from">Dan</label><input id="ev-from" type="datetime-local" name="from" value="{{ from_value }}">
+    <label for="ev-to">Gacha</label><input id="ev-to" type="datetime-local" name="to" value="{{ to_value }}">
+    <button class="button secondary" type="submit">Filtr</button>
+  </form>
+</div>
+<div class="card stats-scroll"><table class="stats-table">
+  <thead><tr><th class="name">Vaqt</th><th class="name">Xodim</th><th>Karta raqami</th><th>Eshik</th></tr></thead>
+  <tbody>{% for e in events %}<tr>
+    <td class="name">{{ e.happened_at|date:'d.m.Y H:i:s' }}</td>
+    <td class="name">{% if e.user %}{{ e.user.full_name }}{% if e.user.department %}<small class="muted"> · {{ e.user.department.name }}</small>{% endif %}{% else %}<span class="muted">{{ e.device_name|default:'Noma’lum' }}</span>{% endif %}</td>
+    <td>{{ e.card_no|default:'—' }}</td>
+    <td>{{ e.door_no }}</td>
+  </tr>{% empty %}<tr><td colspan="4" class="empty">Tanlangan oraliqda hodisa yo‘q.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% if events.has_other_pages %}<nav class="pagination" aria-label="Sahifalar">
+  {% if events.has_previous %}<a class="button secondary" href="?from={{ from_value }}&amp;to={{ to_value }}&amp;page={{ events.previous_page_number }}">Oldingi</a>{% endif %}
+  <span>{{ events.number }} / {{ events.paginator.num_pages }}</span>
+  {% if events.has_next %}<a class="button secondary" href="?from={{ from_value }}&amp;to={{ to_value }}&amp;page={{ events.next_page_number }}">Keyingi</a>{% endif %}
+</nav>{% endif %}
+<p class="help-text stats-note">Karta yoki PIN bilan eshikni ochgan har bir kirish. Oraliqni yuqoridagi sana-vaqt maydonlari bilan tanlang.</p>
+{% endblock %}

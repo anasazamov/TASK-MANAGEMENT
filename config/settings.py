@@ -167,6 +167,48 @@ TYPESAFE_PERSON_MIN = float(os.getenv('TYPESAFE_PERSON_MIN', '0.85'))
 DUE_SOON_DAYS = 3
 STALE_DAYS = 14
 
+# --- Davomat (yo‘qlama): Hikvision eshik stansiyasi ---
+# Push rejimi (asosiy): domofon har bir hodisani /attendance/hook/<secret>/ ga
+# o‘zi POST qiladi. Qurilmada sessiya yo‘q — yo‘ldagi maxfiy satr va ixtiyoriy
+# manba-IP ro‘yxati yagona haqiqiylik dalili. Bo‘sh bo‘lsa endpoint 404 qaytaradi.
+ATTENDANCE_WEBHOOK_SECRET = os.getenv('ATTENDANCE_WEBHOOK_SECRET', '').strip()
+ATTENDANCE_ALLOWED_IPS = os.getenv('ATTENDANCE_ALLOWED_IPS', '').strip()
+# Yo'qlama ertalab shu soatdan (Toshkent vaqti) boshlab hisoblanadi; undan
+# oldingi kirishlar hodisa sifatida yoziladi, lekin kunlik davomatga kirmaydi.
+ATTENDANCE_DAY_START_HOUR = int(os.getenv('ATTENDANCE_DAY_START_HOUR', '7') or '7')
+# Toshkent vaqti: shu soatdan kelmaganlarga «kechikyapsiz» (xodimга), keyingi
+# soatdan kelmaganlar ro'yxati (kotibга) yuboriladi. manage.py attendance_alerts.
+ATTENDANCE_LATE_HOUR = int(os.getenv('ATTENDANCE_LATE_HOUR', '9') or '9')
+ATTENDANCE_ABSENT_HOUR = int(os.getenv('ATTENDANCE_ABSENT_HOUR', '11') or '11')
+# Hikvision access-hodisasining "major" turi (5 = access controller event).
+ATTENDANCE_DOOR_MAJOR = 5
+# Yuz taqqoslash (OpenCV YuNet + SFace). Faqat opencv-python kerak; model fayllari
+# scripts/setup_face_models.py bilan yuklanadi. Fayllar yo'q bo'lsa tizim karta-only
+# rejimiga tushadi. Moslik shu chegaradan past bo'lsa (kun birinchi kirishida) surat
+# saqlanadi va kotibга review tushadi. SFACE kosinus chegarasi ~0.363.
+FACE_MODELS_DIR = os.getenv('FACE_MODELS_DIR', str(BASE_DIR / 'face_models')).strip()
+FACE_DETECTOR_MODEL = os.getenv('FACE_DETECTOR_MODEL',
+                                str(Path(FACE_MODELS_DIR) / 'face_detection_yunet_2023mar.onnx')).strip()
+FACE_RECOGNIZER_MODEL = os.getenv('FACE_RECOGNIZER_MODEL',
+                                  str(Path(FACE_MODELS_DIR) / 'face_recognition_sface_2021dec.onnx')).strip()
+FACE_MATCH_THRESHOLD = float(os.getenv('FACE_MATCH_THRESHOLD', '0.363'))
+# GPU kerak emas: bitta tekshiruv CPU'da ~50 ms, kuniga xodim boshiga bir marta.
+FACE_CPU_THREADS = int(os.getenv('FACE_CPU_THREADS', '1') or '1')
+# Pull rejimi (ixtiyoriy): server domofonga o‘zi ulanib ISAPI alertStream’ni
+# o‘qiydi (manage.py attendance_listen). HIKVISION_HOST bo‘sh bo‘lsa o‘chiq.
+HIKVISION_HOST = os.getenv('HIKVISION_HOST', '').strip()
+HIKVISION_PORT = int(os.getenv('HIKVISION_PORT', '80') or '80')
+HIKVISION_HTTPS = os.getenv('HIKVISION_HTTPS', '0') == '1'
+# Qurilmaning o‘z-o‘zidan imzolangan sertifikati odatiy; tekshiruv faqat haqiqiy
+# sertifikat o‘rnatilgan bo‘lsa yoqiladi.
+HIKVISION_VERIFY_TLS = os.getenv('HIKVISION_VERIFY_TLS', '0') == '1'
+HIKVISION_USER = os.getenv('HIKVISION_USER', 'admin').strip()
+HIKVISION_PASSWORD = os.getenv('HIKVISION_PASSWORD', '')
+HIKVISION_ALERT_PATH = os.getenv('HIKVISION_ALERT_PATH', '/ISAPI/Event/notification/alertStream').strip()
+# Format aniqlash bosqichida xom hodisalar (JSON/XML va face capture) shu yerga
+# yoziladi. Papka shaxsiy ma’lumot saqlaydi — git’ga kiritilmaydi.
+ATTENDANCE_CAPTURE_DIR = os.getenv('ATTENDANCE_CAPTURE_DIR', str(BASE_DIR / 'attendance-capture')).strip()
+
 # Server-side credentials only; never included in templates or API responses.
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '').strip()
 OPENAI_TASK_MODEL = os.getenv('OPENAI_TASK_MODEL', 'gpt-5.6-sol').strip()

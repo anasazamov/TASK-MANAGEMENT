@@ -228,3 +228,9 @@ private_models/
 certs/
 media/
 logs/
+attendance-capture/
+docker-compose.override.yml
+hikvision-httphost.xml
+scripts/attendance_agent.config.json
+scripts/attendance_agent.state.json
+face_models/

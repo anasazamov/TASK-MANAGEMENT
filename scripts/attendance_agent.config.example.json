@@ -14,6 +14,6 @@
   "lookback_minutes": 5,
   "max_results": 30,
   "fallback_snapshot": true,
-  "snapshot_path": "/ISAPI/Streaming/channels/101/picture",
+  "snapshot_path": "/ISAPI/Streaming/channels/101/picture?videoResolutionWidth=1920&videoResolutionHeight=1080",
   "state_file": "attendance_agent.state.json"
 }

@@ -187,7 +187,7 @@ ATTENDANCE_DOOR_MAJOR = 5
 # Yuz taqqoslash (OpenCV YuNet + SFace). Faqat opencv-python kerak; model fayllari
 # scripts/setup_face_models.py bilan yuklanadi. Fayllar yo'q bo'lsa tizim karta-only
 # rejimiga tushadi. Moslik shu chegaradan past bo'lsa (kun birinchi kirishida) surat
-# saqlanadi va kotibга review tushadi. SFACE kosinus chegarasi ~0.363.
+# saqlanadi va kotibga review tushadi. SFACE kosinus chegarasi ~0.363.
 FACE_MODELS_DIR = os.getenv('FACE_MODELS_DIR', str(BASE_DIR / 'face_models')).strip()
 FACE_DETECTOR_MODEL = os.getenv('FACE_DETECTOR_MODEL',
                                 str(Path(FACE_MODELS_DIR) / 'face_detection_yunet_2023mar.onnx')).strip()
@@ -196,6 +196,9 @@ FACE_RECOGNIZER_MODEL = os.getenv('FACE_RECOGNIZER_MODEL',
 FACE_MATCH_THRESHOLD = float(os.getenv('FACE_MATCH_THRESHOLD', '0.363'))
 # GPU kerak emas: bitta tekshiruv CPU'da ~50 ms, kuniga xodim boshiga bir marta.
 FACE_CPU_THREADS = int(os.getenv('FACE_CPU_THREADS', '1') or '1')
+# Domofon kamerasining haqiqiy eni:bo‘yi. DS-KV6124 standart surati 704x576 (16:9 sensordan
+# yon tomonga siqilgan) — server uni shu nisbatga qaytarib solishtiradi. Bo‘sh: o‘chiq.
+ATTENDANCE_FRAME_ASPECT = os.getenv('ATTENDANCE_FRAME_ASPECT', '16:9').strip()
 # Pull rejimi (ixtiyoriy): server domofonga o‘zi ulanib ISAPI alertStream’ni
 # o‘qiydi (manage.py attendance_listen). HIKVISION_HOST bo‘sh bo‘lsa o‘chiq.
 HIKVISION_HOST = os.getenv('HIKVISION_HOST', '').strip()

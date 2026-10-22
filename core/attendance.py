@@ -168,6 +168,9 @@ def _verify_face(access, attendance_id, picture, day):
         return
     if not picture_bytes:
         return
+    # The station squeezes its snapshot sideways; compare (and keep for review) the
+    # frame at its true shape, as the secretary would see the person.
+    picture_bytes = face.restore_aspect(picture_bytes)
     confidence = face.compare(enrollment.embedding, picture_bytes)  # None: no face in frame
     access.face_confidence = confidence
     attendance = Attendance.objects.filter(pk=attendance_id).first()

@@ -54,6 +54,44 @@ def available():
     return _models()[0] is not None
 
 
+def frame_aspect():
+    """The door camera's true width/height from ATTENDANCE_FRAME_ASPECT ('16:9'), or None."""
+    value = (settings.ATTENDANCE_FRAME_ASPECT or '').strip()
+    try:
+        width, _, height = value.partition(':')
+        return float(width) / float(height) if height else (float(width) if width else None)
+    except (ValueError, ZeroDivisionError):
+        return None
+
+
+def restore_aspect(image_bytes):
+    """Undo the door camera's squeezed snapshot, returning JPEG bytes.
+
+    The DS-KV6124's default snapshot is 704x576 taken from a 16:9 sensor: the
+    picture is squeezed sideways, so a face comes out ~30% too narrow, and the
+    match against an ordinary photo drops (0.57 -> 0.36 on a real swipe). A frame
+    already at the camera's aspect is returned untouched.
+    """
+    aspect = frame_aspect()
+    if not aspect or not image_bytes:
+        return image_bytes
+    try:
+        import cv2
+        import numpy as np
+        image = cv2.imdecode(np.frombuffer(image_bytes, np.uint8), cv2.IMREAD_COLOR)
+        if image is None:
+            return image_bytes
+        height, width = image.shape[:2]
+        if abs(width / height - aspect) < 0.05:
+            return image_bytes
+        image = cv2.resize(image, (round(height * aspect), height), interpolation=cv2.INTER_CUBIC)
+        ok, encoded = cv2.imencode('.jpg', image, [cv2.IMWRITE_JPEG_QUALITY, 92])
+        return encoded.tobytes() if ok else image_bytes
+    except Exception as error:  # noqa: BLE001
+        logger.warning('Frame aspect restore failed: %s', type(error).__name__)
+        return image_bytes
+
+
 def embed(image_bytes):
     """The SFace feature vector of the largest detected face, as a list, or None."""
     try:

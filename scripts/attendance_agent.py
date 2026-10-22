@@ -31,6 +31,7 @@ from datetime import datetime, timedelta, timezone
 
 TASHKENT = timezone(timedelta(hours=5))
 LOG = logging.getLogger('attendance_agent')
+SNAPSHOT_PATH = '/ISAPI/Streaming/channels/101/picture?videoResolutionWidth=1920&videoResolutionHeight=1080'
 
 
 def load_config(path):
@@ -52,7 +53,9 @@ def load_config(path):
     # as the event is seen stands in for it; with 1 s polling the person is still
     # in front of the camera. Turn off if the poll interval must be long.
     config.setdefault('fallback_snapshot', True)
-    config.setdefault('snapshot_path', '/ISAPI/Streaming/channels/101/picture')
+    # Ask for a full 16:9 frame: the bare /picture is 704x576, squeezed sideways from the
+    # 16:9 sensor, which narrows every face and costs the match ~0.2.
+    config.setdefault('snapshot_path', SNAPSHOT_PATH)
     config.setdefault('server_verify_tls', True)
     config.setdefault('door_major', 5)
     return config
@@ -140,8 +143,18 @@ def event_picture(opener, base, url):
 
 def snapshot(opener, config):
     """A live camera frame (NOT the event moment) — only a last-resort fallback."""
+    path = config['snapshot_path']
     try:
-        return fetch_bytes(opener, device_base(config) + config['snapshot_path'])
+        return fetch_bytes(opener, device_base(config) + path)
+    except urllib.error.HTTPError as error:
+        if error.code == 404 and '?' in path:
+            # This firmware ignores the size options; take its default frame instead
+            # (the server restores the squeezed aspect) and stop asking.
+            LOG.warning('Snapshot size options not supported; using %s', path.split('?')[0])
+            config['snapshot_path'] = path.split('?')[0]
+            return snapshot(opener, config)
+        LOG.warning('Snapshot failed: HTTPError %s', error.code)
+        return None
     except (urllib.error.URLError, OSError) as error:
         LOG.warning('Snapshot failed: %s', type(error).__name__)
         return None

@@ -124,6 +124,14 @@ kadr kech qolib bo'sh eshikni olishi mumkin.
   - past → surat saqlanadi, davomat «Tekshiruvda» bo'ladi, **Xodimlar → Davomat → Tekshiruvlar**
     sahifasida kotib referent tasdiqlaydi yoki rad etadi (botga ham xabar boradi).
 
+### Kadr nisbati (muhim)
+
+DS-KV6124 ning oddiy `/picture` surati 704x576 — 16:9 sensordan **yon tomonga siqilgan**,
+shuning uchun yuz ~30% tor chiqadi va moslik keskin tushadi (haqiqiy holatda 0.57 -> 0.36).
+Ikki himoya bor: agent suratni `?videoResolutionWidth=1920&videoResolutionHeight=1080` bilan
+so'raydi (eski configda `snapshot_path` ni shu qiymatga yangilang), server esa
+`ATTENDANCE_FRAME_ASPECT=16:9` bo'yicha siqilgan kadrni o'zi tiklaydi.
+
 ## 3. Ogohlantirishlar (Telegram bot)
 
 `manage.py attendance_alerts` har soat ishga tushadi (Docker `reminders` konteyneri

@@ -1,0 +1,21 @@
+{% load ui %}<section class="dashboard-section onboarding" aria-labelledby="onboarding-title">
+  <div class="card onboarding-card">
+    <div class="onboarding-head">
+      <div>
+        <span class="eyebrow success">XUSH KELIBSIZ</span>
+        <h2 id="onboarding-title">{{ user.short_name }}, tizimni birga sozlab olamiz</h2>
+        <p class="muted">Siz — {{ user.get_role_display|lower }}. Quyidagi qadamlar bir necha daqiqa oladi; bajarilganlari o‘zi belgilanadi.</p>
+      </div>
+      <form method="post" action="{% url 'onboarding_toggle' %}">{% csrf_token %}<button class="button mini secondary" type="submit">Yopish</button></form>
+    </div>
+    <ol class="onboarding-steps">
+      {% for step in onboarding %}<li class="{% if step.done %}done{% endif %}">
+        <span class="onboarding-mark" aria-hidden="true">{% if step.done %}{% icon 'check' %}{% else %}{{ forloop.counter }}{% endif %}</span>
+        <div><strong>{{ step.title }}</strong><span class="muted">{{ step.text }}</span></div>
+        {% if step.done %}<span class="status-badge accepted">Bajarildi</span>
+        {% else %}<a class="button mini primary" href="{{ step.url }}"{% if step.external %} target="_blank" rel="noopener"{% endif %}>{{ step.action }}</a>{% endif %}
+      </li>{% endfor %}
+    </ol>
+    <p class="help-text" style="margin-top:12px">Ro‘yxatni yopganingizdan keyin ham «Qo‘llanma» sahifasidan qayta ochish mumkin.</p>
+  </div>
+</section>

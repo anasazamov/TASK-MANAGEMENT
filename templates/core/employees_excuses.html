@@ -1,0 +1,43 @@
+{% extends 'base.html' %}{% load ui %}{% block content %}
+{% include 'core/_employee_tabs.html' %}
+<div class="section-heading"><h2>Uzr so‘rovlari <span class="count-pill">{{ pending|length }}</span></h2></div>
+<p class="help-text" style="margin-bottom:20px">Xodimlar o‘zlari yuborgan uzrli sabablar. Tasdiqlansa, kunlar davomatda «Uzrli» bo‘ladi va kechikish ogohlantirishi yuborilmaydi. Rad etish uchun sababini yozing — u xodimga Telegram orqali boradi va audit uchun saqlanadi.</p>
+{% for item in pending %}
+<div class="card" style="padding:18px;margin-bottom:16px;display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+  <div style="flex:1;min-width:220px">
+    <strong>{{ item.user.full_name }}</strong>{% if item.user.department %}<small class="muted"> · {{ item.user.department.name }}</small>{% endif %}
+    <p style="margin-top:6px"><span class="status-badge excused">{{ item.get_kind_display }}</span> <strong>{{ item.period_label }}</strong>{% if item.expected_at %} · kelish vaqti {{ item.expected_at|time:'H:i' }}{% endif %}</p>
+    {% if item.note %}<p class="muted" style="font-size:13px;margin-top:6px">{{ item.note }}</p>{% endif %}
+    <p class="muted" style="font-size:12px;margin-top:6px">Yuborilgan: {{ item.created_at|date:'d.m.Y H:i' }}</p>
+  </div>
+  <div style="display:grid;gap:10px;min-width:260px;margin-left:auto">
+    <form method="post" action="{% url 'excuse_request_action' item.pk %}" style="display:grid;gap:8px">
+      {% csrf_token %}<input type="hidden" name="decision" value="approve">
+      <input type="text" name="reason" maxlength="2000" placeholder="Izoh (ixtiyoriy)">
+      <button class="button primary" type="submit">Tasdiqlash</button>
+    </form>
+    <form method="post" action="{% url 'excuse_request_action' item.pk %}" style="display:grid;gap:8px">
+      {% csrf_token %}<input type="hidden" name="decision" value="reject">
+      <textarea name="reason" rows="2" required maxlength="2000" placeholder="Rad etish sababi (majburiy)"></textarea>
+      <button class="button danger-button" type="submit">Rad etish</button>
+    </form>
+  </div>
+</div>
+{% empty %}
+<div class="empty-state">{% icon 'check' %}<h2>So‘rov yo‘q</h2><p>Hozircha ko‘rib chiqiladigan uzr so‘rovi yo‘q.</p></div>
+{% endfor %}
+
+<div class="section-heading" style="margin-top:32px"><h2>Ko‘rib chiqilganlar <span class="count-pill">{{ history|length }}</span></h2></div>
+<div class="card stats-scroll"><table class="stats-table">
+  <thead><tr><th class="name">Xodim</th><th>Kunlar</th><th class="name">Sabab</th><th>Qaror</th><th class="name">Izoh</th><th>Kim</th><th>Qachon</th></tr></thead>
+  <tbody>{% for item in history %}<tr>
+    <td class="name">{{ item.user.full_name }}</td>
+    <td>{{ item.period_label }}</td>
+    <td class="name">{{ item.label }}</td>
+    <td>{% if item.state == 'approved' %}<span class="status-badge accepted">Tasdiqlandi</span>{% elif item.state == 'rejected' %}<span class="status-badge overdue">Rad etildi</span>{% else %}<span class="muted">{{ item.get_state_display }}</span>{% endif %}</td>
+    <td class="name">{{ item.reason|default:'—' }}</td>
+    <td>{% if item.state == 'cancelled' %}xodim{% else %}{{ item.resolved_by.short_name|default:'—' }}{% endif %}</td>
+    <td>{{ item.resolved_at|date:'d.m.Y H:i' }}</td>
+  </tr>{% empty %}<tr><td colspan="7" class="empty">Hali ko‘rib chiqilgan so‘rov yo‘q.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

@@ -41,6 +41,10 @@ class User(AbstractUser):
     # departments they answer for, and the whole of their reach is derived here.
     supervised = models.ManyToManyField(Department, blank=True, related_name='deputies',
                                         verbose_name='Nazorat qiladigan bo‘linmalar')
+    # Onboarding: when the welcome checklist was closed, and when the person set their
+    # own password (a reset by the chair does not count) — so that step ticks itself.
+    onboarded_at = models.DateTimeField(null=True, blank=True, editable=False)
+    password_changed_at = models.DateTimeField(null=True, blank=True, editable=False)
 
     class Meta:
         ordering = ['full_name', 'username']
@@ -582,6 +586,9 @@ class AttendanceExcuse(models.Model):
     note = models.CharField('Izoh', max_length=300, blank=True)
     expected_at = models.TimeField('Kelish vaqti', null=True, blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='+')
+    # Set when the day came from an employee's approved request rather than staff entry.
+    request = models.ForeignKey('ExcuseRequest', null=True, blank=True, on_delete=models.SET_NULL,
+                                related_name='excuses')
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
@@ -597,5 +604,53 @@ class AttendanceExcuse(models.Model):
     def label(self):
         text = self.get_kind_display()
         if self.kind == self.Kind.LATE and self.expected_at:
+            text += f' ({self.expected_at:%H:%M} da)'
+        return f'{text}: {self.note}' if self.note else text
+
+
+class ExcuseRequest(models.Model):
+    """An employee asking for a day (or days) to be excused; the secretary decides.
+
+    Only an approved request becomes AttendanceExcuse rows, so what the attendance
+    tab and the 09:00/11:00 alerts treat as excused is always a staff decision.
+    """
+    class State(models.TextChoices):
+        PENDING = 'pending', 'Ko‘rib chiqilmoqda'
+        APPROVED = 'approved', 'Tasdiqlandi'
+        REJECTED = 'rejected', 'Rad etildi'
+        CANCELLED = 'cancelled', 'Bekor qilindi'
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='excuse_requests')
+    kind = models.CharField('Sabab', max_length=12, choices=AttendanceExcuse.Kind.choices)
+    start = models.DateField('Boshlanish')
+    end = models.DateField('Tugash')
+    note = models.CharField('Izoh', max_length=300, blank=True)
+    expected_at = models.TimeField('Kelish vaqti', null=True, blank=True)
+    state = models.CharField(max_length=12, choices=State.choices, default=State.PENDING)
+    # Kept for audit and sent to the employee: why it was refused (required to reject).
+    reason = models.TextField('Qaror sababi', blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name='+')
+
+    class Meta:
+        verbose_name = 'Uzr so‘rovi'
+        verbose_name_plural = 'Uzr so‘rovlari'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.user.short_name} — {self.period_label}: {self.get_kind_display()}'
+
+    @property
+    def period_label(self):
+        if self.start == self.end:
+            return f'{self.start:%d.%m.%Y}'
+        return f'{self.start:%d.%m.%Y} – {self.end:%d.%m.%Y}'
+
+    @property
+    def label(self):
+        text = self.get_kind_display()
+        if self.kind == AttendanceExcuse.Kind.LATE and self.expected_at:
             text += f' ({self.expected_at:%H:%M} da)'
         return f'{text}: {self.note}' if self.note else text

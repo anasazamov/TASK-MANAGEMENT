@@ -1,0 +1,34 @@
+{% extends 'base.html' %}{% load ui %}{% block content %}
+<div class="filter-toolbar"><div class="filter-tabs" role="tablist" aria-label="Rol bo‘yicha">
+  {% for key, label in roles %}<a class="filter-tab {% if key == role %}active{% endif %}" href="?role={{ key }}">{{ label }}{% if key == own_role %} <span>siz</span>{% endif %}</a>{% endfor %}
+</div></div>
+
+<div class="card timeline-intro guide-intro">
+  <span class="form-symbol">{% icon 'book' %}</span>
+  <div>
+    <h2>{{ role_info.label }}</h2>
+    <p class="muted">{{ role_info.summary }}</p>
+    <ul class="guide-can">{% for item in role_info.can %}<li>{% icon 'check' %}<span>{{ item }}</span></li>{% endfor %}</ul>
+  </div>
+</div>
+
+<nav class="list-toolbar guide-toc" aria-label="Bo‘limlar">
+  {% for section in sections %}<a class="button mini secondary" href="#{{ section.id }}">{{ section.title }}</a>{% endfor %}
+</nav>
+
+{% for section in sections %}
+<section class="dashboard-section guide-section" id="{{ section.id }}">
+  <div class="section-heading"><h2>{{ section.title }}</h2><a class="text-link" href="#">Yuqoriga</a></div>
+  <div class="card" style="padding:18px 20px">
+    <p class="muted" style="margin-bottom:12px">{{ section.intro }}</p>
+    <ol class="guide-steps">{% for step in section.steps %}<li>{{ step }}</li>{% endfor %}</ol>
+  </div>
+</section>
+{% endfor %}
+
+<div class="card" style="padding:18px 20px;margin-top:24px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+  <div style="flex:1;min-width:220px"><strong>Tanishtiruv qadamlari</strong><p class="muted" style="margin-top:4px">Bosh paneldagi «Xush kelibsiz» ro‘yxatini qayta ko‘rsatish.</p></div>
+  <form method="post" action="{% url 'onboarding_toggle' %}">{% csrf_token %}<input type="hidden" name="reopen" value="1"><button class="button secondary" type="submit">Qayta ko‘rsatish</button></form>
+</div>
+<p class="help-text stats-note">Savol qolsa, ovozli agentdan so‘rang («Agent» tugmasi) yoki rahbaringizga murojaat qiling.</p>
+{% endblock %}

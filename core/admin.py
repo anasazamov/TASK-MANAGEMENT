@@ -17,8 +17,9 @@ from django.utils.html import format_html
 
 from . import attendance as attendance_service
 from .models import (AccessCard, AccessEvent, Attendance, AttendanceAlert, AttendanceExcuse,
-                     DeadlineRequest, Department, Event, FaceEnrollment, FaceReview, GeneratedPage,
-                     Notification, PushSubscription, Task, TaskAttachment, TaskParticipant, User)
+                     DeadlineRequest, Department, Event, ExcuseRequest, FaceEnrollment, FaceReview,
+                     GeneratedPage, Notification, PushSubscription, Task, TaskAttachment, TaskParticipant,
+                     User)
 
 
 class ReadOnly:
@@ -368,6 +369,20 @@ class AttendanceExcuseAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         obj.created_by = request.user   # who entered it last, for audit
         super().save_model(request, obj, form, change)
+
+
+@admin.register(ExcuseRequest)
+class ExcuseRequestAdmin(ReadOnly, admin.ModelAdmin):
+    """Employees' own requests. Decided on the Uzr so'rovlari page, which also tells them."""
+    list_display = ['created_at', 'user', 'period_label', 'kind', 'state', 'reason', 'resolved_by', 'resolved_at']
+    list_filter = ['state', 'kind']
+    search_fields = ['user__full_name', 'note', 'reason']
+    date_hierarchy = 'created_at'
+    list_select_related = ['user', 'resolved_by']
+
+    @admin.display(description='Kunlar', ordering='start')
+    def period_label(self, item):
+        return item.period_label
 
 
 class EnrollmentForm(forms.ModelForm):

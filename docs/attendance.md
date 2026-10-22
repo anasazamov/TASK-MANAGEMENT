@@ -170,6 +170,12 @@ FACE_MATCH_THRESHOLD=0.35
   kelganlar «Kechikdi» va kechikish muddati bilan; har qatorda **uzrli sabab** kiritish
   (kasal, kechroq keladi + vaqt, xizmat safari, ta'til, boshqa; bir necha kunga birdan),
   kim kiritgani saqlanadi.
+- **Mening davomatim** (har bir xodim uchun menyuda) — oylik jadval: kirishlar, birinchi/oxirgi
+  kirish, kechikish, holat; **uzrli sabab so'rash** (bir yoki bir necha kun, 31 kun orqaga, 62 kun
+  oldinga). So'rov kotib referentga Telegram'da boradi; qaror (tasdiq yoki sabab bilan rad) xodimga
+  Telegram'da qaytadi. Ko'rib chiqilmagan so'rovni xodim bekor qila oladi.
+- **Xodimlar → Davomat → Uzr so'rovlari** (kotib/rais) — tasdiqlash (izoh ixtiyoriy) yoki rad
+  etish (sabab majburiy). Tasdiqlangan kunlar «Uzrli» bo'ladi, kechikish xabari yuborilmaydi.
 - **Xodimlar → Eshik ochilishlari** — barcha kirishlar, sana-vaqt oralig'i filtri.
 - **Xodimlar → Davomat → Yuzlar** — yuz biriktirish (kotib/rais).
 - **Xodimlar → Davomat → Tekshiruvlar** — past moslikdagi yoki yuzsiz kirishlarni tasdiqlash/rad etish (sabab majburiy), ko‘rib chiqilganlar tarixi.

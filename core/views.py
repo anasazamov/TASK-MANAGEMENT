@@ -25,11 +25,11 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
-from . import pages, push, reports, telegram
+from . import guide, pages, push, reports, telegram
 from .forms import (ActionForm, AttachmentForm, ControllerForm, DepartmentForm, EmployeeEditForm,
                     EmployeeForm, LoginForm, ParticipantForm, PartActionForm, TaskForm)
-from .models import (AccessEvent, Attendance, AttendanceExcuse, DeadlineRequest, Department, Event, FaceEnrollment,
-                     FaceReview, PushSubscription, Task, TaskAttachment, TaskParticipant, User)
+from .models import (AccessEvent, Attendance, AttendanceExcuse, DeadlineRequest, Department, Event, ExcuseRequest,
+                     FaceEnrollment, FaceReview, PushSubscription, Task, TaskAttachment, TaskParticipant, User)
 from . import attendance as attendance_service
 from .permissions import can_add_participants, can_attach, can_control, can_delegate, can_manage
 from .services import add_attachment as add_task_attachment
@@ -129,6 +129,8 @@ def dashboard(request):
         'counts': task_counts, 'attention': attention[:8], 'attention_count': len(attention),
         'pending_tasks': pending, 'extensions': extensions, 'decision_count': len(pending) + len(extensions),
         'undated': undated[:4], 'undated_count': len(undated), 'employees': workload(request.user)[:5],
+        # The welcome checklist shows until the person closes it.
+        'onboarding': None if request.user.onboarded_at else guide.onboarding_steps(request.user),
     })
 
 
@@ -435,10 +437,7 @@ def attendance_excuse(request):
     require(request.user.can_assign or request.user.can_oversee)
     employee = get_object_or_404(attendance_service.visible_employees(request.user), pk=request.POST.get('employee', ''))
     try:
-        start = date.fromisoformat(request.POST.get('date', ''))
-        end = date.fromisoformat(request.POST['until']) if request.POST.get('until') else None
-        expected = request.POST.get('expected_at') or None
-        expected = datetime.strptime(expected, '%H:%M').time() if expected else None
+        start, end, expected = _form_dates(request.POST)
     except ValueError:
         messages.error(request, 'Sana yoki vaqt noto‘g‘ri.')
         return redirect('attendance_daily')
@@ -462,6 +461,133 @@ def attendance_excuse_delete(request, pk):
     excuse.delete()
     messages.success(request, 'Uzrli sabab bekor qilindi.')
     return redirect(f"{reverse('attendance_daily')}?date={day:%Y-%m-%d}")
+
+
+def _form_dates(post):
+    """start, end, expected_at from an excuse form; ValueError on a malformed value."""
+    start = date.fromisoformat(post.get('date', ''))
+    end = date.fromisoformat(post['until']) if post.get('until') else None
+    expected = post.get('expected_at') or None
+    return start, end, datetime.strptime(expected, '%H:%M').time() if expected else None
+
+
+def my_month_rows(user, first, today):
+    """One row per day of the month up to today: what the attendance says about it."""
+    last = min((first.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1), today)
+    records = {a.date: a for a in Attendance.objects.filter(user=user, date__range=(first, last))}
+    excuses = {e.date: e for e in AttendanceExcuse.objects.filter(user=user, date__range=(first, last))}
+    pending = list(ExcuseRequest.objects.filter(user=user, state=ExcuseRequest.State.PENDING,
+                                                start__lte=last, end__gte=first))
+    rows, day = [], last
+    while day >= first:
+        attendance, excuse = records.get(day), excuses.get(day)
+        late = attendance_service.late_minutes(attendance)
+        if attendance and attendance.status == Attendance.Status.REVIEW:
+            state = 'review'
+        elif attendance and attendance.status == Attendance.Status.REJECTED:
+            state = 'rejected'
+        elif attendance:
+            state = 'late' if late else 'present'
+        elif excuse:
+            state = 'excused'
+        elif day == today and timezone.localtime().hour < settings.ATTENDANCE_ABSENT_HOUR:
+            state = 'not_yet'
+        elif day.weekday() >= 5:
+            state = 'weekend'
+        else:
+            state = 'absent'
+        rows.append({'date': day, 'weekday': UZ_WEEKDAYS[day.weekday()], 'attendance': attendance,
+                     'excuse': excuse, 'state': state,
+                     'late_label': attendance_service.duration_label(late) if late else '',
+                     'pending': next((r for r in pending if r.start <= day <= r.end), None)})
+        day -= timedelta(days=1)
+    return rows
+
+
+@login_required
+def my_attendance(request):
+    """The employee's own attendance by month, and their excuse requests."""
+    today = timezone.localdate()
+    try:
+        first = date.fromisoformat(request.GET['month'] + '-01') if request.GET.get('month') else today.replace(day=1)
+    except ValueError:
+        first = today.replace(day=1)
+    first = min(first, today.replace(day=1))
+    rows = my_month_rows(request.user, first, today)
+    tally = {key: sum(1 for row in rows if row['state'] == key) for key in
+             ['present', 'late', 'review', 'rejected', 'excused', 'absent']}
+    previous = (first - timedelta(days=1)).replace(day=1)
+    following = (first.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return render(request, 'core/my_attendance.html', {
+        'page_title': 'Mening davomatim', 'subtitle': 'Kirishlar, kechikishlar va uzrli sabablar',
+        'rows': rows, 'tally': tally, 'month': first, 'month_label': f'{UZ_MONTHS[first.month - 1]} {first.year}',
+        'previous_month': previous, 'next_month': following if following <= today else None,
+        'requests': request.user.excuse_requests.select_related('resolved_by')[:30],
+        'excuse_kinds': AttendanceExcuse.Kind.choices,
+        'late_hour': settings.ATTENDANCE_LATE_HOUR, 'day_start_hour': settings.ATTENDANCE_DAY_START_HOUR})
+
+
+@login_required
+@require_POST
+def my_excuse_request(request):
+    back = reverse('my_attendance')
+    if request.POST.get('month'):
+        back += f"?month={request.POST['month'][:7]}"
+    try:
+        start, end, expected = _form_dates(request.POST)
+    except ValueError:
+        messages.error(request, 'Sana yoki vaqt noto‘g‘ri.')
+        return redirect(back)
+    try:
+        attendance_service.request_excuse(request.user, request.POST.get('kind', ''), start, end,
+                                          request.POST.get('note', ''), expected)
+    except ValidationError as error:
+        messages.error(request, ' '.join(error.messages))
+    else:
+        messages.success(request, 'So‘rov kotib referentga yuborildi. Qaror Telegram orqali keladi.')
+    return redirect(back)
+
+
+@login_required
+@require_POST
+def my_excuse_cancel(request, pk):
+    try:
+        attendance_service.cancel_excuse_request(request.user, pk)
+    except ValidationError as error:
+        messages.error(request, ' '.join(error.messages))
+    else:
+        messages.success(request, 'So‘rov bekor qilindi.')
+    return redirect('my_attendance')
+
+
+@login_required
+def excuse_requests(request):
+    require(request.user.can_oversee)
+    scope = ExcuseRequest.objects.filter(user__in=attendance_service.visible_employees(request.user))
+    pending = list(scope.filter(state=ExcuseRequest.State.PENDING).select_related('user', 'user__department')
+                   .order_by('start', 'created_at'))
+    # Decisions stay visible: who decided, when and why — the audit trail.
+    history = (scope.exclude(state=ExcuseRequest.State.PENDING).select_related('user', 'resolved_by')
+               .order_by('-resolved_at')[:50])
+    return render(request, 'core/employees_excuses.html', {
+        'page_title': 'Xodimlar', 'subtitle': 'Davomat — uzr so‘rovlari', 'tab': 'excuses',
+        'pending': pending, 'history': history, 'pending_reviews': pending_reviews_for(request.user)})
+
+
+@login_required
+@require_POST
+def excuse_request_action(request, pk):
+    require(request.user.can_oversee)
+    get_object_or_404(ExcuseRequest.objects.filter(user__in=attendance_service.visible_employees(request.user)), pk=pk)
+    approve = request.POST.get('decision') == 'approve'
+    try:
+        attendance_service.resolve_excuse_request(request.user, pk, approve, request.POST.get('reason', ''))
+    except ValidationError as error:
+        messages.error(request, ' '.join(error.messages))
+    else:
+        messages.success(request, 'So‘rov tasdiqlandi, uzrli sabab kiritildi.' if approve
+                         else 'So‘rov rad etildi. Xodimga xabar yuborildi.')
+    return redirect('excuse_requests')
 
 
 @login_required
@@ -785,11 +911,35 @@ def password_change(request):
     form = PasswordChangeForm(request.user, request.POST or None)
     if request.method == 'POST' and form.is_valid():
         user = form.save()
+        user.password_changed_at = timezone.now()
+        user.save(update_fields=['password_changed_at'])
         update_session_auth_hash(request, user)
         messages.success(request, 'Parolingiz yangilandi.')
         return redirect('dashboard')
     return render(request, 'core/form.html', {'page_title': 'Parolni o‘zgartirish', 'subtitle': 'Hisob xavfsizligi',
         'form': form, 'back_url': 'dashboard', 'submit_label': 'Saqlash'})
+
+
+@login_required
+def guide_page(request):
+    """The user guide: the reader's own role first, any other role on request."""
+    role = request.GET.get('role') or request.user.role
+    if role not in guide.ROLES:
+        role = request.user.role if request.user.role in guide.ROLES else 'employee'
+    return render(request, 'core/guide.html', {
+        'page_title': 'Qo‘llanma', 'subtitle': 'Tizimdan foydalanish bo‘yicha yo‘riqnoma',
+        'role': role, 'role_info': guide.ROLES[role], 'own_role': request.user.role,
+        'roles': [(key, info['label']) for key, info in guide.ROLES.items()],
+        'sections': guide.sections_for(role)})
+
+
+@login_required
+@require_POST
+def onboarding_toggle(request):
+    """Close the welcome checklist, or bring it back from the guide."""
+    request.user.onboarded_at = None if request.POST.get('reopen') else timezone.now()
+    request.user.save(update_fields=['onboarded_at'])
+    return redirect('dashboard')
 
 
 @login_required

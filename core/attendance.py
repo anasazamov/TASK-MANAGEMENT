@@ -21,7 +21,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from .models import (AccessCard, AccessEvent, Attendance, AttendanceAlert, AttendanceExcuse,
+from .models import (AccessCard, AccessEvent, Attendance, AttendanceAlert, AttendanceExcuse, ExcuseRequest,
                      FaceEnrollment, FaceReview, User)
 
 MAX_EXCUSE_DAYS = 62
@@ -350,9 +350,8 @@ def duration_label(minutes):
     return f'{hours} soat' if hours else f'{rest} daq'
 
 
-@transaction.atomic
-def set_excuse(actor, employee, kind, start, end=None, note='', expected_at=None):
-    """Record why someone is away or late, for one day or a run of days."""
+def _checked_excuse(kind, start, end, note, expected_at):
+    """The shared rules for an excuse, whoever enters it; returns the cleaned values."""
     if kind not in AttendanceExcuse.Kind.values:
         raise ValidationError('Sabab turini tanlang.')
     end = end or start
@@ -365,13 +364,100 @@ def set_excuse(actor, employee, kind, start, end=None, note='', expected_at=None
         raise ValidationError('«Boshqa sabab» uchun izoh yozing.')
     if kind != AttendanceExcuse.Kind.LATE:
         expected_at = None
+    return end, note, expected_at
+
+
+@transaction.atomic
+def set_excuse(actor, employee, kind, start, end=None, note='', expected_at=None, request=None):
+    """Record why someone is away or late, for one day or a run of days."""
+    end, note, expected_at = _checked_excuse(kind, start, end, note, expected_at)
     day, saved = start, 0
     while day <= end:
         AttendanceExcuse.objects.update_or_create(user=employee, date=day, defaults={
-            'kind': kind, 'note': note, 'expected_at': expected_at, 'created_by': actor})
+            'kind': kind, 'note': note, 'expected_at': expected_at, 'created_by': actor, 'request': request})
         day += timedelta(days=1)
         saved += 1
     return saved
+
+
+# How far back an employee may ask to excuse a day (a forgotten sick day), and ahead.
+EXCUSE_REQUEST_PAST_DAYS = 31
+
+
+@transaction.atomic
+def request_excuse(employee, kind, start, end=None, note='', expected_at=None):
+    """An employee asks for days to be excused; the secretaries are told to decide."""
+    end, note, expected_at = _checked_excuse(kind, start, end, note, expected_at)
+    today = timezone.localdate()
+    if start < today - timedelta(days=EXCUSE_REQUEST_PAST_DAYS):
+        raise ValidationError(f'{EXCUSE_REQUEST_PAST_DAYS} kundan eski kun uchun so‘rov yuborib bo‘lmaydi.')
+    if end > today + timedelta(days=MAX_EXCUSE_DAYS):
+        raise ValidationError(f'{MAX_EXCUSE_DAYS} kundan keyingi kun uchun so‘rov yuborib bo‘lmaydi.')
+    if ExcuseRequest.objects.filter(user=employee, state=ExcuseRequest.State.PENDING,
+                                    start__lte=end, end__gte=start).exists():
+        raise ValidationError('Bu kunlar uchun ko‘rib chiqilayotgan so‘rovingiz bor. Avval uni bekor qiling.')
+    item = ExcuseRequest.objects.create(user=employee, kind=kind, start=start, end=end, note=note,
+                                        expected_at=expected_at)
+    transaction.on_commit(lambda rid=item.pk: send_excuse_request_alert(rid))
+    return item
+
+
+def cancel_excuse_request(employee, request_id):
+    """The employee withdraws a request nobody has decided yet."""
+    updated = ExcuseRequest.objects.filter(pk=request_id, user=employee, state=ExcuseRequest.State.PENDING).update(
+        state=ExcuseRequest.State.CANCELLED, resolved_at=timezone.now())
+    if not updated:
+        raise ValidationError('So‘rov topilmadi yoki allaqachon ko‘rib chiqilgan.')
+
+
+@transaction.atomic
+def resolve_excuse_request(actor, request_id, approve, reason=''):
+    """The secretary's decision: approved days become excuses; the employee is told."""
+    reason = (reason or '').strip()[:2000]
+    if not approve and not reason:
+        raise ValidationError('Rad etish sababini yozing — u xodimga yuboriladi va audit uchun saqlanadi.')
+    item = (ExcuseRequest.objects.select_for_update(of=('self',)).select_related('user')
+            .filter(pk=request_id, state=ExcuseRequest.State.PENDING).first())
+    if not item:
+        raise ValidationError('So‘rov topilmadi yoki allaqachon ko‘rib chiqilgan.')
+    if approve:
+        set_excuse(actor, item.user, item.kind, item.start, item.end, item.note, item.expected_at, request=item)
+    item.state = ExcuseRequest.State.APPROVED if approve else ExcuseRequest.State.REJECTED
+    item.reason, item.resolved_at, item.resolved_by = reason, timezone.now(), actor
+    item.save(update_fields=['state', 'reason', 'resolved_at', 'resolved_by'])
+    transaction.on_commit(lambda rid=item.pk: send_excuse_decision(rid))
+    return item
+
+
+def send_excuse_request_alert(request_id):
+    """Tell the secretaries an employee is asking for days to be excused."""
+    from . import telegram
+    if not telegram.configured():
+        return
+    item = ExcuseRequest.objects.filter(pk=request_id).select_related('user').first()
+    if not item:
+        return
+    text = (f'Uzr so‘rovi: {item.user.full_name} — {item.period_label}, {item.label}. '
+            f'Tasdiqlang yoki rad eting.')
+    for secretary in secretaries():
+        telegram.message(secretary, text, '/employees/excuses/')
+
+
+def send_excuse_decision(request_id):
+    """Tell the employee what was decided on their request, and why if refused."""
+    from . import telegram
+    if not telegram.configured():
+        return
+    item = ExcuseRequest.objects.filter(pk=request_id).select_related('user').first()
+    if not item:
+        return
+    if item.state == ExcuseRequest.State.APPROVED:
+        text = f'Uzr so‘rovingiz tasdiqlandi: {item.period_label}, {item.label}.'
+        if item.reason:
+            text += f' Izoh: {item.reason}'
+    else:
+        text = f'Uzr so‘rovingiz rad etildi: {item.period_label}, {item.label}. Sabab: {item.reason}'
+    telegram.message(item.user, text, '/me/attendance/')
 
 
 def enroll_face(user, image_file):

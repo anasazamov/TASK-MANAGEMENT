@@ -1,12 +1,13 @@
 <div class="filter-toolbar"><div class="filter-tabs" role="tablist">
   <a class="filter-tab {% if tab == 'stats' %}active{% endif %}" href="{% url 'employees' %}">Statistika</a>
-  <a class="filter-tab {% if tab == 'attendance' or tab == 'faces' or tab == 'reviews' %}active{% endif %}" href="{% url 'attendance_daily' %}">Davomat{% if pending_reviews %} <span>{{ pending_reviews }}</span>{% endif %}</a>
+  <a class="filter-tab {% if tab == 'attendance' or tab == 'faces' or tab == 'reviews' or tab == 'excuses' %}active{% endif %}" href="{% url 'attendance_daily' %}">Davomat{% if pending_reviews or nav_excuse_pending %} <span>{{ pending_reviews|add:nav_excuse_pending }}</span>{% endif %}</a>
   <a class="filter-tab {% if tab == 'events' %}active{% endif %}" href="{% url 'access_events' %}">Eshik ochilishlari</a>
 </div></div>
-{% if tab == 'attendance' or tab == 'faces' or tab == 'reviews' %}{% if user.can_oversee %}
+{% if tab == 'attendance' or tab == 'faces' or tab == 'reviews' or tab == 'excuses' %}{% if user.can_oversee %}
 <nav class="list-toolbar" aria-label="Davomat bo‘limlari" style="margin-top:0">
   <a class="button mini {% if tab == 'attendance' %}primary{% else %}secondary{% endif %}" href="{% url 'attendance_daily' %}">Kunlik davomat</a>
   <a class="button mini {% if tab == 'faces' %}primary{% else %}secondary{% endif %}" href="{% url 'face_enrollments' %}">Yuzlar</a>
   <a class="button mini {% if tab == 'reviews' %}primary{% else %}secondary{% endif %}" href="{% url 'face_reviews' %}">Tekshiruvlar{% if pending_reviews %} <span class="count-pill">{{ pending_reviews }}</span>{% endif %}</a>
+  <a class="button mini {% if tab == 'excuses' %}primary{% else %}secondary{% endif %}" href="{% url 'excuse_requests' %}">Uzr so‘rovlari{% if nav_excuse_pending %} <span class="count-pill">{{ nav_excuse_pending }}</span>{% endif %}</a>
 </nav>
 {% endif %}{% endif %}

@@ -1,0 +1,79 @@
+{% extends 'base.html' %}{% load ui %}{% block content %}
+<div class="section-heading">
+  <h2>{{ month_label }}</h2>
+  <div class="list-toolbar" style="margin:0">
+    <a class="button mini secondary" href="?month={{ previous_month|date:'Y-m' }}">{% icon 'back' %} Oldingi oy</a>
+    {% if next_month %}<a class="button mini secondary" href="?month={{ next_month|date:'Y-m' }}">Keyingi oy {% icon 'arrow' %}</a>{% endif %}
+  </div>
+</div>
+<div class="att-summary">
+  <span class="status-badge accepted">Keldi: <strong>{{ tally.present|add:tally.late }}</strong></span>
+  <span class="status-badge overdue">Kechikdi: <strong>{{ tally.late }}</strong></span>
+  <span class="status-badge submitted">Tekshiruvda: <strong>{{ tally.review }}</strong></span>
+  <span class="status-badge overdue">Rad etildi: <strong>{{ tally.rejected }}</strong></span>
+  <span class="status-badge excused">Uzrli: <strong>{{ tally.excused }}</strong></span>
+  <span class="status-badge">Kelmagan: <strong>{{ tally.absent }}</strong></span>
+</div>
+
+<details class="card excuse" style="padding:16px;margin-bottom:18px">
+  <summary><strong>Uzrli sabab so‘rash</strong> <span class="muted">— kotib referent ko‘rib chiqadi, qaror Telegram orqali keladi</span></summary>
+  <form method="post" action="{% url 'my_excuse_request' %}" class="excuse-form" style="margin-top:12px">
+    {% csrf_token %}
+    <input type="hidden" name="month" value="{{ month|date:'Y-m' }}">
+    <label>Sabab<select name="kind" required>{% for value, label in excuse_kinds %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
+    <label>Sana<input type="date" name="date" required value="{{ today|date:'Y-m-d' }}"></label>
+    <label>Qaysi sanagacha <span class="muted">(bir necha kun bo‘lsa)</span><input type="date" name="until"></label>
+    <label>Kelish vaqti <span class="muted">(«Kechroq keladi» uchun)</span><input type="time" name="expected_at"></label>
+    <label>Izoh<input type="text" name="note" maxlength="300" placeholder="Masalan: shifokor qabulida bo‘laman"></label>
+    <button class="button mini primary" type="submit">Yuborish</button>
+  </form>
+</details>
+
+<div class="card stats-scroll"><table class="stats-table">
+  <thead><tr><th>Sana</th><th>Kirishlar</th><th>Birinchi kirish</th><th>Oxirgi kirish</th><th>Kechikish</th><th>Holat</th><th class="name">Izoh</th></tr></thead>
+  <tbody>{% for row in rows %}<tr>
+    <td>{{ row.date|date:'d.m.Y' }} <small class="muted">{{ row.weekday }}</small></td>
+    {% if row.attendance %}
+      <td>{{ row.attendance.entry_count }}</td>
+      <td>{{ row.attendance.first_entry_at|date:'H:i' }}</td>
+      <td>{{ row.attendance.last_entry_at|date:'H:i' }}</td>
+      <td>{% if row.late_label %}<span class="late-label">+{{ row.late_label }}</span>{% else %}—{% endif %}</td>
+    {% else %}<td>—</td><td>—</td><td>—</td><td>—</td>{% endif %}
+    <td>
+      {% if row.state == 'present' %}<span class="status-badge accepted">Keldi</span>
+      {% elif row.state == 'late' %}<span class="status-badge overdue">Kechikdi</span>
+      {% elif row.state == 'review' %}<span class="status-badge submitted">Tekshiruvda</span>
+      {% elif row.state == 'rejected' %}<span class="status-badge overdue">Rad etildi</span>
+      {% elif row.state == 'excused' %}<span class="status-badge excused">Uzrli</span>
+      {% elif row.state == 'not_yet' %}<span class="status-badge">Hali kirmagan</span>
+      {% elif row.state == 'weekend' %}<span class="muted">Dam olish kuni</span>
+      {% else %}<span class="status-badge">Kelmagan</span>{% endif %}
+    </td>
+    <td class="name">
+      {% if row.excuse %}{{ row.excuse.label }}{% endif %}
+      {% if row.pending %}<small class="muted" style="display:block">So‘rov ko‘rib chiqilmoqda: {{ row.pending.label }}</small>{% endif %}
+      {% if not row.excuse and not row.pending %}—{% endif %}
+    </td>
+  </tr>{% empty %}<tr><td colspan="7" class="empty">Bu oy uchun ma’lumot yo‘q.</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="help-text stats-note">Yo‘qlama Toshkent vaqti bilan {{ day_start_hour }}:00 dan hisoblanadi; {{ late_hour }}:00 dan keyingi birinchi kirish «Kechikdi» deb belgilanadi.</p>
+
+<div class="section-heading" style="margin-top:28px"><h2>Mening so‘rovlarim <span class="count-pill">{{ requests|length }}</span></h2></div>
+<div class="card stats-scroll"><table class="stats-table">
+  <thead><tr><th>Kunlar</th><th class="name">Sabab</th><th>Yuborilgan</th><th>Holat</th><th class="name">Qaror izohi</th><th></th></tr></thead>
+  <tbody>{% for item in requests %}<tr>
+    <td>{{ item.period_label }}</td>
+    <td class="name">{{ item.label }}</td>
+    <td>{{ item.created_at|date:'d.m.Y H:i' }}</td>
+    <td>
+      {% if item.state == 'pending' %}<span class="status-badge submitted">{{ item.get_state_display }}</span>
+      {% elif item.state == 'approved' %}<span class="status-badge accepted">{{ item.get_state_display }}</span>
+      {% elif item.state == 'rejected' %}<span class="status-badge overdue">{{ item.get_state_display }}</span>
+      {% else %}<span class="muted">{{ item.get_state_display }}</span>{% endif %}
+      {% if item.resolved_by %}<small class="muted" style="display:block">{{ item.resolved_by.short_name }}, {{ item.resolved_at|date:'d.m H:i' }}</small>{% endif %}
+    </td>
+    <td class="name">{{ item.reason|default:'—' }}</td>
+    <td>{% if item.state == 'pending' %}<form method="post" action="{% url 'my_excuse_cancel' item.pk %}">{% csrf_token %}<button class="button mini secondary" type="submit">Bekor qilish</button></form>{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="6" class="empty">Hali so‘rov yuborilmagan.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

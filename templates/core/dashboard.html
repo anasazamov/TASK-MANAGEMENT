@@ -1,5 +1,6 @@
 {% extends 'base.html' %}{% load ui %}{% block content %}
 <div class="page-eyebrow"><span><span class="online-dot"></span> IJRO HOLATI</span><span>{{ today|date:'d.m.Y' }} <span class="separator">/</span> Toshkent</span></div>
+{% if onboarding %}{% include 'core/_onboarding.html' %}{% endif %}
 <div class="stats-grid">
   <a class="stat-card" href="{% url 'tasks' %}?filter=active"><div class="stat-top"><span class="stat-label">Faol topshiriq</span><span class="stat-icon">{% icon 'tasks' %}</span></div><strong>{{ counts.active }}</strong><div class="stat-bottom"><span>Joriy ijrodagi vazifalar</span>{% icon 'arrow' %}</div></a>
   <a class="stat-card danger" href="{% url 'tasks' %}?filter=overdue"><div class="stat-top"><span class="stat-label">Muddati o‘tgan</span><span class="stat-icon">{% icon 'alert' %}</span></div><strong>{{ counts.overdue }}</strong><div class="stat-bottom"><span>Diqqat talab qiladi</span>{% icon 'arrow' %}</div></a>

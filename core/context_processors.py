@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.utils import timezone
-from .models import Task
+from .models import ExcuseRequest, Task
 
 
 def navigation(request):
@@ -13,4 +13,7 @@ def navigation(request):
         'today': timezone.localdate(),
         'current_page': request.resolver_match.url_name if request.resolver_match else '',
         'push_key': settings.VAPID_PUBLIC_KEY,
+        # Excuse requests waiting for the secretary's decision: the Davomat tab badge.
+        'nav_excuse_pending': (ExcuseRequest.objects.filter(state=ExcuseRequest.State.PENDING).count()
+                               if request.user.can_oversee else 0),
     }

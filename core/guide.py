@@ -18,7 +18,7 @@ ROLES = {
             'Istalgan xodimga topshiriq berish, ijroni qabul qilish yoki qaytarish, muddatni o‘zgartirish.',
             'Barcha topshiriqlar, statistika, nazorat zanjiri va harakatlar tarixini ko‘rish.',
             '«Struktura» sahifasida bo‘linma va xodim qo‘shish, parolni tiklash, hisobni bloklash.',
-            'Davomat: barcha xodimlar, yuz tekshiruvlari va uzr so‘rovlari bo‘yicha qaror qabul qilish.',
+            'Davomat: barcha xodimlar, yuz tekshiruvlari va ruxsat so‘rovlari bo‘yicha qaror qabul qilish.',
         ],
     },
     'deputy': {
@@ -52,7 +52,7 @@ ROLES = {
         'summary': 'Barcha topshiriqlarni ko‘radi, topshiriq beradi va xodimlar davomatini yuritadi.',
         'can': [
             'Barcha topshiriqlar va statistikani ko‘rish, istalgan xodimga topshiriq berish.',
-            'Davomat: yuzlarni biriktirish, yuz tekshiruvlari va uzr so‘rovlari bo‘yicha qaror.',
+            'Davomat: yuzlarni biriktirish, yuz tekshiruvlari va ruxsat so‘rovlari bo‘yicha qaror.',
             'Telegram orqali: har bir xodim kelgani, tekshiruv kerakligi, 11:00 dagi kelmaganlar ro‘yxati.',
         ],
     },
@@ -62,7 +62,7 @@ ROLES = {
         'can': [
             'Topshiriqni ko‘rish, izoh va fayl qo‘shish, ijroni topshirish, muddat uzaytirishni so‘rash.',
             'Qo‘shimcha ijrochi sifatida o‘z qismini bajarish.',
-            '«Mening davomatim» sahifasida kirishlarni ko‘rish va uzrli sabab so‘rash.',
+            '«Mening davomatim» sahifasida kirishlarni ko‘rish, ruxsat so‘rash yoki kelmagan kun sababini bildirish.',
         ],
     },
 }
@@ -167,7 +167,7 @@ SECTIONS = [
             'Yuz aniq tanilmasa, kirish kotib referent tekshiruviga tushadi va sizga Telegram’da xabar keladi. Keyingi kirishda yuzingizni aniq ko‘rsatsangiz, avtomatik tasdiqlanadi.',
             '09:00 gacha kelmasangiz, Telegram’da eslatma keladi (uzrli sababingiz bo‘lsa — kelmaydi).',
             '«Mening davomatim» sahifasida oyma-oy kirishlar, kechikishlar va holatni ko‘rasiz.',
-            'Uzrli sabab (kasal, kechroq kelish, xizmat safari, ta’til, boshqa) uchun «Uzrli sabab so‘rash» formasini to‘ldiring — bir yoki bir necha kunga.',
+            'Kelolmasangiz yoki kechiksangiz (kasal, kechroq kelish, xizmat safari, ta’til, boshqa) — «Ruxsat so‘rash» tugmasini bosing, bir yoki bir necha kunga. O‘tib ketgan kun uchun o‘sha kun qatoridagi «Sababini bildirish» havolasidan foydalaning.',
             'So‘rov kotib referentga boradi; qaror Telegram orqali keladi. Ko‘rib chiqilmagan so‘rovni bekor qilishingiz mumkin.',
         ],
     },
@@ -177,7 +177,7 @@ SECTIONS = [
         'steps': [
             'Kun chiplari yoki sana orqali kunni tanlang; bugungi ro‘yxat o‘zi yangilanadi.',
             'Har bir xodim uchun: kirishlar soni, birinchi va oxirgi kirish, kechikish va holat.',
-            'Xodim sababini aytgan bo‘lsa, qatordagi «Uzr kiritish» orqali kiriting — kechikish xabari unga bormaydi.',
+            'Xodim sababini aytgan bo‘lsa, qatordagi «Sabab kiritish» orqali kiriting — kechikish xabari unga bormaydi.',
             '«Excel yuklab olish» — kunlik hisobot.',
             '«Eshik ochilishlari» yorlig‘ida barcha kirishlar vaqt oralig‘i bo‘yicha.',
         ],
@@ -188,8 +188,8 @@ SECTIONS = [
         'steps': [
             '«Yuzlar» — har bir xodimga aniq, yorug‘ rasm biriktiring; rasmsiz xodim faqat karta bo‘yicha hisoblanadi.',
             '«Tekshiruvlar» — yuzi tanilmagan kirishlar: ikki rasmni solishtirib «Tasdiqlash» yoki sababini yozib «Rad etish».',
-            '«Uzr so‘rovlari» — xodimlar yuborgan uzrlar: «Tasdiqlash» (kunlar «Uzrli» bo‘ladi) yoki sabab bilan «Rad etish». Qaror xodimga Telegram’da boradi.',
-            'Telegram orqali kotib referentga: har bir xodim kelgani, tekshiruv yoki uzr so‘rovi kelgani va 11:00 dagi kelmaganlar ro‘yxati.',
+            '«Ruxsat so‘rovlari» — xodimlar yuborgan so‘rovlar: «Tasdiqlash» (kunlar «Uzrli» bo‘ladi) yoki sabab bilan «Rad etish». Qaror xodimga Telegram’da boradi.',
+            'Telegram orqali kotib referentga: har bir xodim kelgani, tekshiruv yoki ruxsat so‘rovi kelgani va 11:00 dagi kelmaganlar ro‘yxati.',
             'Barcha qarorlar «Ko‘rib chiqilganlar» tarixida kim, qachon va nima sababdan qilgani bilan saqlanadi.',
         ],
     },
@@ -244,10 +244,10 @@ def onboarding_steps(user):
         steps.append({'title': 'Topshiriqlaringizni ko‘ring', 'text': 'Sizga berilgan topshiriqlar va ularning muddatlari.',
                       'url': reverse('tasks'), 'action': 'Topshiriqlar', 'done': None})
     if user.can_oversee:
-        steps.append({'title': 'Davomat nazoratini ko‘ring', 'text': 'Yuzlar, tekshiruvlar va uzr so‘rovlari shu yerda.',
+        steps.append({'title': 'Davomat nazoratini ko‘ring', 'text': 'Yuzlar, tekshiruvlar va ruxsat so‘rovlari shu yerda.',
                       'url': reverse('attendance_daily'), 'action': 'Davomat', 'done': None})
     else:
-        steps.append({'title': 'Davomatingizni ko‘ring', 'text': 'Kirishlaringiz va uzrli sabab so‘rash.',
+        steps.append({'title': 'Davomatingizni ko‘ring', 'text': 'Kirishlaringiz, kechikishlar va ruxsat so‘rash.',
                       'url': reverse('my_attendance'), 'action': 'Mening davomatim', 'done': None})
     steps.append({'title': 'Qo‘llanmani o‘qing', 'text': 'Rolingiz uchun qisqa yo‘riqnoma — 5 daqiqa.',
                   'url': reverse('guide'), 'action': 'Qo‘llanma', 'done': None})

@@ -1,7 +1,7 @@
 {% extends 'base.html' %}{% load ui %}{% block content %}
 {% include 'core/_employee_tabs.html' %}
-<div class="section-heading"><h2>Uzr so‘rovlari <span class="count-pill">{{ pending|length }}</span></h2></div>
-<p class="help-text" style="margin-bottom:20px">Xodimlar o‘zlari yuborgan uzrli sabablar. Tasdiqlansa, kunlar davomatda «Uzrli» bo‘ladi va kechikish ogohlantirishi yuborilmaydi. Rad etish uchun sababini yozing — u xodimga Telegram orqali boradi va audit uchun saqlanadi.</p>
+<div class="section-heading"><h2>Ruxsat so‘rovlari <span class="count-pill">{{ pending|length }}</span></h2></div>
+<p class="help-text" style="margin-bottom:20px">Xodimlar yuborgan ruxsat so‘rovlari va kelmagan kunlari sabablari. Tasdiqlansa, kunlar davomatda «Uzrli» bo‘ladi va kechikish ogohlantirishi yuborilmaydi. Rad etish uchun sababini yozing — u xodimga Telegram orqali boradi va audit uchun saqlanadi.</p>
 {% for item in pending %}
 <div class="card" style="padding:18px;margin-bottom:16px;display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
   <div style="flex:1;min-width:220px">
@@ -24,7 +24,7 @@
   </div>
 </div>
 {% empty %}
-<div class="empty-state">{% icon 'check' %}<h2>So‘rov yo‘q</h2><p>Hozircha ko‘rib chiqiladigan uzr so‘rovi yo‘q.</p></div>
+<div class="empty-state">{% icon 'check' %}<h2>So‘rov yo‘q</h2><p>Hozircha ko‘rib chiqiladigan ruxsat so‘rovi yo‘q.</p></div>
 {% endfor %}
 
 <div class="section-heading" style="margin-top:32px"><h2>Ko‘rib chiqilganlar <span class="count-pill">{{ history|length }}</span></h2></div>

@@ -635,8 +635,8 @@ class ExcuseRequest(models.Model):
                                     related_name='+')
 
     class Meta:
-        verbose_name = 'Uzr so‘rovi'
-        verbose_name_plural = 'Uzr so‘rovlari'
+        verbose_name = 'Ruxsat so‘rovi'
+        verbose_name_plural = 'Ruxsat so‘rovlari'
         ordering = ['-created_at']
 
     def __str__(self):

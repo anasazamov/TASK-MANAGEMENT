@@ -453,7 +453,7 @@ def send_excuse_request_alert(request_id):
     item = ExcuseRequest.objects.filter(pk=request_id).select_related('user').first()
     if not item:
         return
-    text = (f'Uzr so‘rovi: {item.user.full_name} — {item.period_label}, {item.label}. '
+    text = (f'Ruxsat so‘rovi: {item.user.full_name} — {item.period_label}, {item.label}. '
             f'Tasdiqlang yoki rad eting.')
     for secretary in secretaries():
         telegram.message(secretary, text, '/employees/excuses/')
@@ -468,11 +468,11 @@ def send_excuse_decision(request_id):
     if not item:
         return
     if item.state == ExcuseRequest.State.APPROVED:
-        text = f'Uzr so‘rovingiz tasdiqlandi: {item.period_label}, {item.label}.'
+        text = f'Ruxsat so‘rovingiz tasdiqlandi: {item.period_label}, {item.label}.'
         if item.reason:
             text += f' Izoh: {item.reason}'
     else:
-        text = f'Uzr so‘rovingiz rad etildi: {item.period_label}, {item.label}. Sabab: {item.reason}'
+        text = f'Ruxsat so‘rovingiz rad etildi: {item.period_label}, {item.label}. Sabab: {item.reason}'
     telegram.message(item.user, text, '/me/attendance/')
 
 

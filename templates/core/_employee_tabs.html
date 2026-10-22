@@ -8,6 +8,6 @@
   <a class="button mini {% if tab == 'attendance' %}primary{% else %}secondary{% endif %}" href="{% url 'attendance_daily' %}">Kunlik davomat</a>
   <a class="button mini {% if tab == 'faces' %}primary{% else %}secondary{% endif %}" href="{% url 'face_enrollments' %}">Yuzlar</a>
   <a class="button mini {% if tab == 'reviews' %}primary{% else %}secondary{% endif %}" href="{% url 'face_reviews' %}">Tekshiruvlar{% if pending_reviews %} <span class="count-pill">{{ pending_reviews }}</span>{% endif %}</a>
-  <a class="button mini {% if tab == 'excuses' %}primary{% else %}secondary{% endif %}" href="{% url 'excuse_requests' %}">Uzr so‘rovlari{% if nav_excuse_pending %} <span class="count-pill">{{ nav_excuse_pending }}</span>{% endif %}</a>
+  <a class="button mini {% if tab == 'excuses' %}primary{% else %}secondary{% endif %}" href="{% url 'excuse_requests' %}">Ruxsat so‘rovlari{% if nav_excuse_pending %} <span class="count-pill">{{ nav_excuse_pending }}</span>{% endif %}</a>
 </nav>
 {% endif %}{% endif %}

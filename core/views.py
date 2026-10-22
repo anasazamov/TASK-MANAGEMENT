@@ -516,7 +516,9 @@ def my_month_rows(user, first, today, since):
                      'late_label': attendance_service.duration_label(late) if late else '',
                      'can_request': (state in REQUESTABLE_STATES and not excuse and not request_for
                                      and day >= oldest_request),
-                     'request_kind': 'late' if state in ('late', 'not_yet') else ''})
+                     'request_kind': 'late' if state in ('late', 'not_yet') else '',
+                     # A day already gone is explained, not asked for.
+                     'request_label': 'Sababini bildirish' if day < today else 'Ruxsat so‘rash'})
         day -= timedelta(days=1)
     return rows
 
@@ -568,8 +570,13 @@ def my_excuse_request(request):
         else:
             messages.success(request, 'So‘rovingiz kotib referentga yuborildi. Qaror Telegram orqali keladi.')
             return redirect(f"{reverse('my_attendance')}?month={start:%Y-%m}")
+    try:
+        explaining = date.fromisoformat(values['date']) < today
+    except ValueError:
+        explaining = False
     return render(request, 'core/my_excuse_form.html', {
-        'page_title': 'Uzrli sabab so‘rash', 'subtitle': 'Kotib referent ko‘rib chiqadi, qaror Telegram orqali keladi',
+        'page_title': 'Sababini bildirish' if explaining else 'Ruxsat so‘rash',
+        'subtitle': 'Kotib referent ko‘rib chiqadi, qaror Telegram orqali keladi',
         'values': values, 'error': error, 'today': today, 'tomorrow': today + timedelta(days=1),
         'kinds': [(value, label, EXCUSE_KIND_HINTS.get(value, '')) for value, label in AttendanceExcuse.Kind.choices],
         'min_date': today - timedelta(days=attendance_service.EXCUSE_REQUEST_PAST_DAYS),
@@ -598,7 +605,7 @@ def excuse_requests(request):
     history = (scope.exclude(state=ExcuseRequest.State.PENDING).select_related('user', 'resolved_by')
                .order_by('-resolved_at')[:50])
     return render(request, 'core/employees_excuses.html', {
-        'page_title': 'Xodimlar', 'subtitle': 'Davomat — uzr so‘rovlari', 'tab': 'excuses',
+        'page_title': 'Xodimlar', 'subtitle': 'Davomat — ruxsat so‘rovlari', 'tab': 'excuses',
         'pending': pending, 'history': history, 'pending_reviews': pending_reviews_for(request.user)})
 
 

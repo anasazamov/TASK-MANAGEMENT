@@ -28,7 +28,7 @@ class ExcuseRequestFlowTests(TestCase):
             item = request_excuse(self.employee, 'sick', self.today, self.today + timedelta(days=2), 'Shamollash')
         self.assertEqual(item.state, ExcuseRequest.State.PENDING)
         self.assertEqual(self.recipients(message), [self.secretary])
-        self.assertIn('Uzr so‘rovi: Sinov Xodim', message.call_args.args[1])
+        self.assertIn('Ruxsat so‘rovi: Sinov Xodim', message.call_args.args[1])
         self.assertFalse(AttendanceExcuse.objects.exists())     # nothing is excused before a decision
 
     def test_approval_excuses_every_day_and_tells_the_employee(self, message, configured):
@@ -90,7 +90,7 @@ class ExcusePagesTests(TestCase):
         self.client.force_login(self.employee)
         page = self.client.get(reverse('my_attendance'))
         self.assertContains(page, 'Mening davomatim')
-        self.assertContains(page, 'Uzrli sabab so‘rash')
+        self.assertContains(page, 'Ruxsat so‘rash')
         self.client.post(reverse('my_excuse_request'), {'kind': 'sick', 'date': self.today.isoformat(), 'note': 'Isitma'})
         self.assertEqual(ExcuseRequest.objects.get().user, self.employee)
         self.assertContains(self.client.get(reverse('my_attendance')), 'Ko‘rib chiqilmoqda')
@@ -142,7 +142,7 @@ class MyAttendanceExperienceTests(TestCase):
         page = self.client.get(reverse('my_attendance'))
         self.assertContains(page, 'Davomatingiz hali yuritilmayapti')
         self.assertContains(page, 'Kelmagan: <strong>0</strong>')
-        self.assertNotContains(page, 'Uzr so‘rash</a>')
+        self.assertNotContains(page, 'Sababini bildirish</a>')
 
     def test_tracking_starts_with_the_card_and_older_months_are_closed(self):
         from .models import AccessCard
@@ -180,3 +180,9 @@ class MyAttendanceExperienceTests(TestCase):
         ExcuseRequest.objects.all().delete()
         self.client.post(url, {'kind': 'sick', 'date': self.today.isoformat(), 'until': later, 'several': '1'})
         self.assertEqual(ExcuseRequest.objects.get().end, self.today + timedelta(days=3))
+
+    def test_a_past_day_is_explained_and_a_coming_one_asked_for(self):
+        url = reverse('my_excuse_request')
+        yesterday = (self.today - timedelta(days=1)).isoformat()
+        self.assertContains(self.client.get(url + f'?date={yesterday}'), '<h2>Sababini bildirish</h2>')
+        self.assertContains(self.client.get(url + f'?date={self.today:%Y-%m-%d}'), '<h2>Ruxsat so‘rash</h2>')

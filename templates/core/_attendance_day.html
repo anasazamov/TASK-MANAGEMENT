@@ -42,7 +42,7 @@
         <form method="post" action="{% url 'attendance_excuse_delete' row.excuse.pk %}" style="margin-top:4px">{% csrf_token %}<button class="button mini secondary" type="submit">Bekor qilish</button></form>
       {% else %}
         <details class="excuse">
-          <summary>Uzr kiritish</summary>
+          <summary>Sabab kiritish</summary>
           <form method="post" action="{% url 'attendance_excuse' %}" class="excuse-form">
             {% csrf_token %}
             <input type="hidden" name="employee" value="{{ row.user.pk }}">

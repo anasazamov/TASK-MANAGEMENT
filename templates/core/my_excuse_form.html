@@ -2,7 +2,7 @@
 <a class="back-link" href="{% url 'my_attendance' %}">{% icon 'back' %} Mening davomatim</a>
 <div class="form-card card excuse-request">
   <div class="form-card-heading">
-    <h2>Uzrli sabab so‘rash</h2>
+    <h2>{{ page_title }}</h2>
     <p>So‘rov kotib referentga boradi. Tasdiqlansa, kunlar davomatda «Uzrli» bo‘ladi va kechikish haqida eslatma kelmaydi. Qaror Telegram orqali keladi.</p>
   </div>
   {% if error %}<div class="notice warning" role="alert"><strong>So‘rov yuborilmadi</strong><p>{{ error }}</p></div>{% endif %}

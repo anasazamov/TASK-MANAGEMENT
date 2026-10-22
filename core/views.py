@@ -471,15 +471,29 @@ def _form_dates(post):
     return start, end, datetime.strptime(expected, '%H:%M').time() if expected else None
 
 
-def my_month_rows(user, first, today):
+# Where the employee can ask for an excuse straight from a day: the days that cost them.
+REQUESTABLE_STATES = {'absent', 'late', 'rejected', 'not_yet'}
+EXCUSE_KIND_HINTS = {
+    'sick': 'Kasallik yoki shifokor ko‘rigi',
+    'late': 'Ishga kechroq kelaman — vaqtini ko‘rsating',
+    'trip': 'Ish bilan boshqa joydaman',
+    'leave': 'Mehnat ta’tili yoki o‘z hisobidan',
+    'other': 'Izohda qisqacha tushuntiring',
+}
+
+
+def my_month_rows(user, first, today, since):
     """One row per day of the month up to today: what the attendance says about it."""
     last = min((first.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1), today)
     records = {a.date: a for a in Attendance.objects.filter(user=user, date__range=(first, last))}
     excuses = {e.date: e for e in AttendanceExcuse.objects.filter(user=user, date__range=(first, last))}
     pending = list(ExcuseRequest.objects.filter(user=user, state=ExcuseRequest.State.PENDING,
                                                 start__lte=last, end__gte=first))
+    oldest_request = today - timedelta(days=attendance_service.EXCUSE_REQUEST_PAST_DAYS)
+    # Days before the station knew this person are left out: they say nothing.
+    stop = max(first, since) if since else last + timedelta(days=1)
     rows, day = [], last
-    while day >= first:
+    while day >= stop:
         attendance, excuse = records.get(day), excuses.get(day)
         late = attendance_service.late_minutes(attendance)
         if attendance and attendance.status == Attendance.Status.REVIEW:
@@ -496,10 +510,13 @@ def my_month_rows(user, first, today):
             state = 'weekend'
         else:
             state = 'absent'
+        request_for = next((r for r in pending if r.start <= day <= r.end), None)
         rows.append({'date': day, 'weekday': UZ_WEEKDAYS[day.weekday()], 'attendance': attendance,
-                     'excuse': excuse, 'state': state,
+                     'excuse': excuse, 'state': state, 'pending': request_for,
                      'late_label': attendance_service.duration_label(late) if late else '',
-                     'pending': next((r for r in pending if r.start <= day <= r.end), None)})
+                     'can_request': (state in REQUESTABLE_STATES and not excuse and not request_for
+                                     and day >= oldest_request),
+                     'request_kind': 'late' if state in ('late', 'not_yet') else ''})
         day -= timedelta(days=1)
     return rows
 
@@ -508,44 +525,55 @@ def my_month_rows(user, first, today):
 def my_attendance(request):
     """The employee's own attendance by month, and their excuse requests."""
     today = timezone.localdate()
+    since = attendance_service.tracking_start(request.user)
+    earliest = (since or today).replace(day=1)
     try:
         first = date.fromisoformat(request.GET['month'] + '-01') if request.GET.get('month') else today.replace(day=1)
     except ValueError:
         first = today.replace(day=1)
-    first = min(first, today.replace(day=1))
-    rows = my_month_rows(request.user, first, today)
+    first = max(min(first, today.replace(day=1)), earliest)
+    rows = my_month_rows(request.user, first, today, since)
     tally = {key: sum(1 for row in rows if row['state'] == key) for key in
              ['present', 'late', 'review', 'rejected', 'excused', 'absent']}
     previous = (first - timedelta(days=1)).replace(day=1)
     following = (first.replace(day=28) + timedelta(days=4)).replace(day=1)
+    requests = list(request.user.excuse_requests.select_related('resolved_by')[:30])
     return render(request, 'core/my_attendance.html', {
         'page_title': 'Mening davomatim', 'subtitle': 'Kirishlar, kechikishlar va uzrli sabablar',
         'rows': rows, 'tally': tally, 'month': first, 'month_label': f'{UZ_MONTHS[first.month - 1]} {first.year}',
-        'previous_month': previous, 'next_month': following if following <= today else None,
-        'requests': request.user.excuse_requests.select_related('resolved_by')[:30],
-        'excuse_kinds': AttendanceExcuse.Kind.choices,
+        'previous_month': previous if previous >= earliest else None,
+        'next_month': following if following <= today else None, 'since': since,
+        'requests': requests, 'pending_requests': [r for r in requests if r.state == ExcuseRequest.State.PENDING],
         'late_hour': settings.ATTENDANCE_LATE_HOUR, 'day_start_hour': settings.ATTENDANCE_DAY_START_HOUR})
 
 
 @login_required
-@require_POST
 def my_excuse_request(request):
-    back = reverse('my_attendance')
-    if request.POST.get('month'):
-        back += f"?month={request.POST['month'][:7]}"
-    try:
-        start, end, expected = _form_dates(request.POST)
-    except ValueError:
-        messages.error(request, 'Sana yoki vaqt noto‘g‘ri.')
-        return redirect(back)
-    try:
-        attendance_service.request_excuse(request.user, request.POST.get('kind', ''), start, end,
-                                          request.POST.get('note', ''), expected)
-    except ValidationError as error:
-        messages.error(request, ' '.join(error.messages))
-    else:
-        messages.success(request, 'So‘rov kotib referentga yuborildi. Qaror Telegram orqali keladi.')
-    return redirect(back)
+    """Ask for an excuse: a form of its own, prefilled from the day it was opened for."""
+    today = timezone.localdate()
+    values = {'kind': request.GET.get('kind', ''), 'date': request.GET.get('date', '') or today.isoformat(),
+              'until': '', 'expected_at': '', 'note': ''}
+    error = ''
+    if request.method == 'POST':
+        values = {key: request.POST.get(key, '').strip() for key in values}
+        if not request.POST.get('several'):
+            values['until'] = ''
+        try:
+            start, end, expected = _form_dates(values)
+            attendance_service.request_excuse(request.user, values['kind'], start, end, values['note'], expected)
+        except ValueError:
+            error = 'Sana yoki vaqt noto‘g‘ri kiritilgan.'
+        except ValidationError as exc:
+            error = ' '.join(exc.messages)
+        else:
+            messages.success(request, 'So‘rovingiz kotib referentga yuborildi. Qaror Telegram orqali keladi.')
+            return redirect(f"{reverse('my_attendance')}?month={start:%Y-%m}")
+    return render(request, 'core/my_excuse_form.html', {
+        'page_title': 'Uzrli sabab so‘rash', 'subtitle': 'Kotib referent ko‘rib chiqadi, qaror Telegram orqali keladi',
+        'values': values, 'error': error, 'today': today, 'tomorrow': today + timedelta(days=1),
+        'kinds': [(value, label, EXCUSE_KIND_HINTS.get(value, '')) for value, label in AttendanceExcuse.Kind.choices],
+        'min_date': today - timedelta(days=attendance_service.EXCUSE_REQUEST_PAST_DAYS),
+        'max_date': today + timedelta(days=attendance_service.MAX_EXCUSE_DAYS)})
 
 
 @login_required

@@ -128,3 +128,55 @@ class ExcusePagesTests(TestCase):
         response = self.client.post(reverse('excuse_request_action', args=[item.pk]), {'decision': 'approve'})
         self.assertEqual(response.status_code, 403)
         self.assertFalse(AttendanceExcuse.objects.exists())
+
+
+class MyAttendanceExperienceTests(TestCase):
+    """What the employee sees: no false absences, and a way to ask right from the day."""
+
+    def setUp(self):
+        self.employee = User.objects.create_user('sinov', full_name='Sinov Xodim', role='employee', password='x')
+        self.client.force_login(self.employee)
+        self.today = timezone.localdate()
+
+    def test_days_before_tracking_are_not_absences(self):
+        page = self.client.get(reverse('my_attendance'))
+        self.assertContains(page, 'Davomatingiz hali yuritilmayapti')
+        self.assertContains(page, 'Kelmagan: <strong>0</strong>')
+        self.assertNotContains(page, 'Uzr so‘rash</a>')
+
+    def test_tracking_starts_with_the_card_and_older_months_are_closed(self):
+        from .models import AccessCard
+        card = AccessCard.objects.create(user=self.employee, card_no='1000000001')
+        AccessCard.objects.filter(pk=card.pk).update(created_at=timezone.now() - timedelta(days=3))
+        page = self.client.get(reverse('my_attendance') + '?month=2020-01')
+        self.assertEqual(page.context['month'], self.today.replace(day=1))   # clamped to the first tracked month
+        self.assertIsNone(page.context['previous_month'])
+        self.assertNotContains(page, 'Davomatingiz hali yuritilmayapti')
+
+    def test_a_missed_weekday_offers_a_prefilled_request(self):
+        from .models import AccessCard
+        card = AccessCard.objects.create(user=self.employee, card_no='1000000001')
+        AccessCard.objects.filter(pk=card.pk).update(created_at=timezone.now() - timedelta(days=10))
+        page = self.client.get(reverse('my_attendance'))
+        absent = [row for row in page.context['rows'] if row['state'] == 'absent']
+        if absent:                                     # the month may hold no past weekday yet
+            self.assertTrue(absent[0]['can_request'])
+            self.assertContains(page, f"?date={absent[0]['date']:%Y-%m-%d}")
+
+    def test_form_is_prefilled_and_shows_errors_in_place(self):
+        url = reverse('my_excuse_request')
+        page = self.client.get(url + f'?date={self.today:%Y-%m-%d}&kind=late')
+        self.assertContains(page, 'value="late" required checked')
+        page = self.client.post(url, {'kind': 'other', 'date': self.today.isoformat(), 'note': ''})
+        self.assertContains(page, 'So‘rov yuborilmadi')
+        self.assertContains(page, 'izoh yozing')
+        self.assertFalse(ExcuseRequest.objects.exists())
+
+    def test_until_is_ignored_unless_several_days_are_ticked(self):
+        url = reverse('my_excuse_request')
+        later = (self.today + timedelta(days=3)).isoformat()
+        self.client.post(url, {'kind': 'sick', 'date': self.today.isoformat(), 'until': later})
+        self.assertEqual(ExcuseRequest.objects.get().end, self.today)
+        ExcuseRequest.objects.all().delete()
+        self.client.post(url, {'kind': 'sick', 'date': self.today.isoformat(), 'until': later, 'several': '1'})
+        self.assertEqual(ExcuseRequest.objects.get().end, self.today + timedelta(days=3))

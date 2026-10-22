@@ -330,6 +330,22 @@ def _fold_into_day(user, access):
             'attendance_id': attendance.pk, 'date': local.date()}
 
 
+def tracking_start(user):
+    """The first day the door station could have recorded this person, or None.
+
+    Days before it hold no attendance at all, so they must not read as absences:
+    a month before the station was installed is not a month of not coming in.
+    """
+    from django.db.models import Min
+    first_event = AccessEvent.objects.filter(user=user).aggregate(first=Min('happened_at'))['first']
+    first_card = AccessCard.objects.filter(user=user).aggregate(first=Min('created_at'))['first']
+    days = [timezone.localtime(moment).date() for moment in (first_event, first_card) if moment]
+    first_day = Attendance.objects.filter(user=user).aggregate(first=Min('date'))['first']
+    if first_day:
+        days.append(first_day)
+    return min(days) if days else None
+
+
 def late_minutes(attendance):
     """How many minutes after ATTENDANCE_LATE_HOUR (09:00) the person arrived.
 

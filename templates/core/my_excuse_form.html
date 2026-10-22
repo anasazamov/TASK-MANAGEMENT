@@ -1,0 +1,53 @@
+{% extends 'base.html' %}{% load static ui %}{% block content %}
+<a class="back-link" href="{% url 'my_attendance' %}">{% icon 'back' %} Mening davomatim</a>
+<div class="form-card card excuse-request">
+  <div class="form-card-heading">
+    <h2>Uzrli sabab so‘rash</h2>
+    <p>So‘rov kotib referentga boradi. Tasdiqlansa, kunlar davomatda «Uzrli» bo‘ladi va kechikish haqida eslatma kelmaydi. Qaror Telegram orqali keladi.</p>
+  </div>
+  {% if error %}<div class="notice warning" role="alert"><strong>So‘rov yuborilmadi</strong><p>{{ error }}</p></div>{% endif %}
+  <form method="post" class="stack-form" data-excuse-form>
+    {% csrf_token %}
+    <fieldset class="excuse-kinds">
+      <legend>Sabab</legend>
+      {% for value, label, hint in kinds %}
+      <label class="excuse-kind">
+        <input type="radio" name="kind" value="{{ value }}" required {% if values.kind == value %}checked{% endif %}>
+        <span><strong>{{ label }}</strong><small>{{ hint }}</small></span>
+      </label>
+      {% endfor %}
+    </fieldset>
+
+    <div class="excuse-dates">
+      <label>Qaysi kun
+        <input type="date" name="date" required value="{{ values.date }}" min="{{ min_date|date:'Y-m-d' }}" max="{{ max_date|date:'Y-m-d' }}" data-excuse-date>
+      </label>
+      <div class="excuse-quick">
+        <button class="button mini secondary" type="button" data-set-date="{{ today|date:'Y-m-d' }}">Bugun</button>
+        <button class="button mini secondary" type="button" data-set-date="{{ tomorrow|date:'Y-m-d' }}">Ertaga</button>
+      </div>
+    </div>
+
+    <div data-only="several">
+      <label class="excuse-check"><input type="checkbox" name="several" value="1" {% if values.until %}checked{% endif %} data-several> Bir necha kun</label>
+      <label data-until {% if not values.until %}hidden{% endif %}>Qaysi kungacha (shu kun ham kiradi)
+        <input type="date" name="until" value="{{ values.until }}" min="{{ values.date }}" max="{{ max_date|date:'Y-m-d' }}">
+      </label>
+    </div>
+
+    <label data-only="late" {% if values.kind != 'late' %}hidden{% endif %}>Taxminan soat nechada kelasiz
+      <input type="time" name="expected_at" value="{{ values.expected_at }}">
+    </label>
+
+    <label>Izoh <span class="muted" data-note-hint>{% if values.kind == 'other' %}(majburiy){% else %}(ixtiyoriy){% endif %}</span>
+      <input type="text" name="note" maxlength="300" value="{{ values.note }}" placeholder="Masalan: shifokor qabulidaman, 11:00 da kelaman" {% if values.kind == 'other' %}required{% endif %}>
+    </label>
+
+    <div class="form-actions">
+      <a class="button secondary" href="{% url 'my_attendance' %}">Bekor qilish</a>
+      <button class="button primary" type="submit">So‘rovni yuborish</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block extra_scripts %}<script src="{% static 'js/excuse-form.js' %}" defer></script>{% endblock %}

@@ -14,6 +14,8 @@ def navigation(request):
         'current_page': request.resolver_match.url_name if request.resolver_match else '',
         'push_key': settings.VAPID_PUBLIC_KEY,
         # Excuse requests waiting for the secretary's decision: the Davomat tab badge.
+        # Leadership exempt from attendance has no "Mening davomatim" to look at.
+        'attendance_tracked': request.user.role not in settings.ATTENDANCE_EXEMPT_ROLES,
         'nav_excuse_pending': (ExcuseRequest.objects.filter(state=ExcuseRequest.State.PENDING).count()
                                if request.user.can_oversee else 0),
     }

@@ -101,10 +101,34 @@ ATTENDANCE_COLUMNS = [('T/R', 7), ('F.I.Sh.', 40), ('Bo‘linma', 26), ('Kirishl
                       ('Qaror / sabab', 44), ('Uzrli sabab', 36)]
 
 
-def attendance_workbook(rows, day, prepared_by):
-    """Daily attendance (one row per employee) as an .xlsx, like the stats sheet."""
+# Row colours for the marked export: light fills that still read when printed.
+ATTENDANCE_FILLS = {
+    'absent': ('FFC7CE', 'Kelmadi'),
+    'late': ('FFEB9C', 'Kechikdi'),
+    'rejected': ('F4B183', 'Rad etildi'),
+    'review': ('FFF2CC', 'Tekshiruvda'),
+    'excused': ('DDEBF7', 'Uzrli'),
+}
+
+
+def attendance_state(row):
+    """One word for the row: present, late, review, rejected, excused or absent."""
+    attendance = row['attendance']
+    if not attendance:
+        return 'excused' if row.get('excuse') else 'absent'
+    if attendance.status in ('review', 'rejected'):
+        return attendance.status
+    return 'late' if row.get('late') else 'present'
+
+
+def attendance_workbook(rows, day, prepared_by, marked=False):
+    """Daily attendance (one row per employee) as an .xlsx, like the stats sheet.
+
+    `marked` colours each row by its state — absentees red — and adds a legend
+    with the counts, so the sheet can be read at a glance or printed as is.
+    """
     from openpyxl import Workbook
-    from openpyxl.styles import Alignment, Border, Font, Side
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
     from openpyxl.utils import get_column_letter
 
     book = Workbook()
@@ -113,6 +137,8 @@ def attendance_workbook(rows, day, prepared_by):
     thin = Side(style='thin')
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
     center = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    fills = {state: PatternFill('solid', start_color=color, end_color=color)
+             for state, (color, _) in ATTENDANCE_FILLS.items()}
     for index, (_, width) in enumerate(ATTENDANCE_COLUMNS, 1):
         sheet.column_dimensions[get_column_letter(index)].width = width
     sheet['C1'] = 'Kunlik davomat'
@@ -123,8 +149,11 @@ def attendance_workbook(rows, day, prepared_by):
         cell = sheet.cell(row=4, column=index, value=title)
         cell.font = Font(name='Times New Roman', size=12, bold=True)
         cell.alignment, cell.border = center, border
+    counts = {}
     for number, row in enumerate(rows, 1):
         attendance = row['attendance']
+        state = attendance_state(row)
+        counts[state] = counts.get(state, 0) + 1
         values = [number, row['user'].full_name, str(row['user'].department or '—'),
                   attendance.entry_count if attendance else 0,
                   timezone.localtime(attendance.first_entry_at).strftime('%H:%M') if attendance and attendance.first_entry_at else '—',
@@ -142,11 +171,26 @@ def attendance_workbook(rows, day, prepared_by):
         values.append(excuse.label if excuse else '')
         for index, value in enumerate(values, 1):
             cell = sheet.cell(row=4 + number, column=index, value=value)
-            cell.font = Font(name='Times New Roman', size=13)
+            cell.font = Font(name='Times New Roman', size=13, bold=marked and state == 'absent' and index == 8)
             text = index in (2, 9, 10)
             cell.alignment = Alignment(horizontal='left' if text else 'center', vertical='center', wrap_text=text)
             cell.border = border
-    sheet.cell(row=4 + len(rows) + 3, column=3, value=prepared_by).font = Font(name='Times New Roman', size=13)
+            if marked and state in fills:
+                cell.fill = fills[state]
+    last = 4 + len(rows)
+    if marked:
+        # Legend: colour, meaning and how many, under the table.
+        sheet.cell(row=last + 2, column=2, value='Belgilar:').font = Font(name='Times New Roman', size=12, bold=True)
+        legend = [('present', None, 'Keldi')] + [(state, fills[state], label)
+                                                 for state, (_, label) in ATTENDANCE_FILLS.items()]
+        for offset, (state, fill, label) in enumerate(legend):
+            swatch = sheet.cell(row=last + 3 + offset, column=2, value=f'{label}: {counts.get(state, 0)}')
+            swatch.font = Font(name='Times New Roman', size=12)
+            swatch.border = border
+            if fill:
+                swatch.fill = fill
+        last += len(legend) + 2
+    sheet.cell(row=last + 3, column=3, value=prepared_by).font = Font(name='Times New Roman', size=13)
     sheet.print_options.horizontalCentered = True
     buffer = io.BytesIO()
     book.save(buffer)

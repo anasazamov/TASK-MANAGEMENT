@@ -506,6 +506,8 @@ class AttendanceAlert(models.Model):
         ABSENTEES = 'absentees', 'Kelmaganlar ro‘yxati (kotibga)'
         REVIEW = 'review', 'Tekshiruv (kotibga)'
         NOT_COUNTED = 'not_counted', 'Hisobga olinmadi (xodimga)'
+        CHECKED_IN = 'checked_in', 'Yo‘qlama qabul qilindi (xodimga)'
+        ABSENT = 'absent', 'Kelmadi (xodimga)'
 
     subject = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='attendance_alerts')
     date = models.DateField()

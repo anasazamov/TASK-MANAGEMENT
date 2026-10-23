@@ -142,11 +142,14 @@ uni `send_reminders` bilan birga bajaradi; Dockersiz — Task Scheduler/cron har
 | Kotib referent | kun birinchi kirishi | «X ishga keldi — soat HH:MM» |
 | Kotib referent | past moslik | «Yuz tekshiruvi kerak» + havola |
 | Kotib referent | 11:00 (Toshkent) | bugun kelmaganlar ro'yxati |
-| Xodim | 09:00 (Toshkent) | «ishga kechikyapsiz» (hali kelmagan bo'lsa) |
+| Xodim | yo'qlamasi qabul qilinganda (kuniga bir marta) | «✅ yo'qlamangiz qabul qilindi: soat HH:MM» (+ kechikish) |
+| Xodim | 10:00 (`ATTENDANCE_LATE_ALERT_HOUR`) | «ishga kechikyapsiz» (hali kirmagan bo'lsa) |
+| Xodim | 11:00 | «kelmagan deb belgilandingiz» + «Sababini bildirish» |
 | Xodim | yo'qlamasi tekshiruvga tushsa | «… kirishingiz tekshiruvga yuborildi; keyingi kirishda yuzingizni ko'rsating» |
 | Xodim | review rad etilsa (kun butunlay hisobga olinmasa) | «yo'qlamangiz tasdiqlanmadi» + sabab |
 
-Uzrli sababi kiritilgan xodimga 09:00 dagi xabar yuborilmaydi; 11:00 dagi ro'yxatda u
+Dam olish kunlari (`ATTENDANCE_WEEKEND_DAYS`, standart shanba-yakshanba) vaqtli xabarlar yuborilmaydi.
+Uzrli sababi kiritilgan xodimga 10:00 va 11:00 xabarlari yuborilmaydi; 11:00 dagi ro'yxatda u
 «Uzrli» bo'limida sababi bilan chiqadi.
 
 Har ogohlantirish kuniga bir marta (`AttendanceAlert` takrorlanishni to'xtatadi).
@@ -176,6 +179,12 @@ FACE_MATCH_THRESHOLD=0.35
   Telegram'da qaytadi. Ko'rib chiqilmagan so'rovni xodim bekor qila oladi.
 - **Xodimlar → Davomat → Ruxsat so'rovlari** (kotib/rais) — tasdiqlash (izoh ixtiyoriy) yoki rad
   etish (sabab majburiy). Tasdiqlangan kunlar «Uzrli» bo'ladi, kechikish xabari yuborilmaydi.
+- **Excel**: «Excel yuklab olish» — oddiy jadval; «Belgilangan Excel» — qatorlar holat bo'yicha
+  bo'yalgan (kelmadi — qizil, kechikdi — sariq, uzrli — ko'k, rad etildi, tekshiruvda) va
+  ostida sonlari bilan legenda.
+- **Davomatdan ozod rollar** (`ATTENDANCE_EXEMPT_ROLES`, standart `chair`): kirishlari faqat eshik
+  jurnaliga yoziladi; kunlik davomat, Excel, kelish/kechikish xabarlari va 11:00 ro'yxatida yo'q,
+  menyuda «Mening davomatim» ko'rinmaydi.
 - **Xodimlar → Eshik ochilishlari** — barcha kirishlar, sana-vaqt oralig'i filtri.
 - **Xodimlar → Davomat → Yuzlar** — yuz biriktirish (kotib/rais).
 - **Xodimlar → Davomat → Tekshiruvlar** — past moslikdagi yoki yuzsiz kirishlarni tasdiqlash/rad etish (sabab majburiy), ko‘rib chiqilganlar tarixi.

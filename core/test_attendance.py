@@ -1,3 +1,4 @@
+import io
 import json
 import tempfile
 from unittest.mock import patch
@@ -175,9 +176,9 @@ class ArrivalAlertTests(TestCase):
     def test_first_entry_notifies_the_secretary_once(self, message, configured):
         with self.captureOnCommitCallbacks(execute=True):
             ingest_event(event('2026-10-21 08:00:00'))
-        self.assertEqual(message.call_count, 1)
-        self.assertEqual(message.call_args.args[0], self.secretary)
-        self.assertIn('SINOV XODIM', message.call_args.args[1])
+        to_secretary = [call for call in message.call_args_list if call.args[0] == self.secretary]
+        self.assertEqual(len(to_secretary), 1)
+        self.assertIn('SINOV XODIM', to_secretary[0].args[1])
         self.assertTrue(AttendanceAlert.objects.filter(subject=self.employee, kind='arrival').exists())
         message.reset_mock()
         with self.captureOnCommitCallbacks(execute=True):
@@ -185,7 +186,16 @@ class ArrivalAlertTests(TestCase):
         self.assertEqual(message.call_count, 0)
 
 
-@override_settings(ATTENDANCE_LATE_HOUR=0, ATTENDANCE_ABSENT_HOUR=0, ATTENDANCE_DAY_START_HOUR=7)
+def workday_at(hour, minute=0):
+    """A fixed weekday moment, so the hourly alerts do not depend on when tests run."""
+    from datetime import datetime, timedelta
+    day = timezone.localdate()
+    while day.weekday() >= 5:
+        day -= timedelta(days=1)
+    return timezone.make_aware(datetime(day.year, day.month, day.day, hour, minute))
+
+
+@override_settings(ATTENDANCE_LATE_ALERT_HOUR=10, ATTENDANCE_ABSENT_HOUR=11, ATTENDANCE_WEEKEND_DAYS={5, 6})
 class ScheduledAlertTests(TestCase):
     def setUp(self):
         self.secretary = User.objects.create_user('kotib', full_name='Kotib Referent', role='secretary', telegram_id=1001)
@@ -193,31 +203,56 @@ class ScheduledAlertTests(TestCase):
         self.absent = User.objects.create_user('yoq', full_name='Kelmadi Yoq', role='employee', telegram_id=1003)
         AccessCard.objects.create(user=self.came, card_no='111')
         AccessCard.objects.create(user=self.absent, card_no='222')
-        now = timezone.now()
-        Attendance.objects.create(user=self.came, date=timezone.localdate(), entry_count=1,
-                                  first_entry_at=now, last_entry_at=now)
+        self.day = workday_at(8).date()
+        moment = workday_at(8, 30)
+        Attendance.objects.create(user=self.came, date=self.day, entry_count=1,
+                                  first_entry_at=moment, last_entry_at=moment)
+
+    def run_at(self, moment):
+        with patch('django.utils.timezone.localtime', return_value=timezone.localtime(moment)):
+            call_command('attendance_alerts', stdout=io.StringIO())
 
     @patch('core.telegram.configured', return_value=True)
     @patch('core.telegram.message', return_value=True)
-    def test_late_warning_and_absentee_list(self, message, configured):
-        call_command('attendance_alerts')
-        recipients = [call.args[0] for call in message.call_args_list]
-        self.assertIn(self.absent, recipients)      # late warning to the one who didn't come
-        self.assertIn(self.secretary, recipients)   # absentee list to the secretary
-        self.assertNotIn(self.came, recipients)     # the one who came is left alone
+    def test_late_reminder_between_ten_and_eleven(self, message, configured):
+        self.run_at(workday_at(9, 30))
+        self.assertEqual(message.call_count, 0)        # 09:30: too early to remind
+        self.run_at(workday_at(10, 5))
+        self.assertEqual([call.args[0] for call in message.call_args_list], [self.absent])
+        self.assertIn('kechikyapsiz', message.call_args.args[1])
+
+    @patch('core.telegram.configured', return_value=True)
+    @patch('core.telegram.message', return_value=True)
+    def test_at_eleven_the_absentee_and_the_secretary_are_told(self, message, configured):
+        self.run_at(workday_at(11, 5))
+        sent = {call.args[0]: call.args[1] for call in message.call_args_list}
+        self.assertIn('kelmagan deb belgilandingiz', sent[self.absent])
+        self.assertNotIn('kechikyapsiz', sent[self.absent])   # no late reminder in the same breath
+        self.assertIn('Kelmadi Yoq', sent[self.secretary])
+        self.assertNotIn(self.came, sent)
         message.reset_mock()
-        call_command('attendance_alerts')           # idempotent: nothing new on a re-run
+        self.run_at(workday_at(12, 5))                  # idempotent: nothing new on a re-run
         self.assertEqual(message.call_count, 0)
 
     @patch('core.telegram.configured', return_value=True)
     @patch('core.telegram.message', return_value=True)
     def test_a_rejected_day_counts_as_absent(self, message, configured):
         Attendance.objects.filter(user=self.came).update(status='rejected')
-        call_command('attendance_alerts')
+        self.run_at(workday_at(11, 5))
         recipients = [call.args[0] for call in message.call_args_list]
-        self.assertIn(self.came, recipients)        # late warning: no valid attendance
+        self.assertIn(self.came, recipients)
         summary = next(call.args[1] for call in message.call_args_list if call.args[0] == self.secretary)
         self.assertIn('Keldi Kelibdi (rad etilgan)', summary)
+
+    @patch('core.telegram.configured', return_value=True)
+    @patch('core.telegram.message', return_value=True)
+    def test_weekend_is_quiet(self, message, configured):
+        from datetime import timedelta
+        saturday = workday_at(11, 5)
+        while saturday.weekday() != 5:
+            saturday += timedelta(days=1)
+        self.run_at(saturday)
+        self.assertEqual(message.call_count, 0)
 
 
 @override_settings(ATTENDANCE_DAY_START_HOUR=7, FACE_MATCH_THRESHOLD=0.35,
@@ -589,3 +624,49 @@ class ExcusedAlertTests(TestCase):
         self.assertIn('kelmaganlar (1)', summary)
         self.assertIn('Uzrli (1)', summary)
         self.assertIn('Kasal Xodim — Kasal: Shamollagan', summary)
+
+
+@override_settings(ATTENDANCE_DAY_START_HOUR=7, ATTENDANCE_LATE_HOUR=9, FACE_MATCH_THRESHOLD=0.35,
+                   ATTENDANCE_EXEMPT_ROLES=['chair'])
+class CheckedInReceiptTests(TestCase):
+    def setUp(self):
+        self.employee = User.objects.create_user('anas', full_name='SINOV XODIM', role='employee', telegram_id=3001)
+        AccessCard.objects.create(user=self.employee, card_no='1000000001')
+        FaceEnrollment.objects.create(user=self.employee, embedding=[0.1] * 512,
+                                      photo=SimpleUploadedFile('enrolled.jpg', b'enrolled-bytes'))
+        available = patch('core.face.available', return_value=True)
+        available.start()
+        self.addCleanup(available.stop)
+
+    def picture(self):
+        return SimpleUploadedFile('capture.jpg', b'captured-bytes', content_type='image/jpeg')
+
+    def employee_messages(self, message):
+        return [call.args[1] for call in message.call_args_list if call.args[0] == self.employee]
+
+    @patch('core.telegram.configured', return_value=True)
+    @patch('core.telegram.message', return_value=True)
+    @patch('core.face.compare', return_value=0.9)
+    def test_recognised_arrival_sends_one_receipt_with_lateness(self, compare, message, configured):
+        with self.captureOnCommitCallbacks(execute=True):
+            ingest_event(event('2026-10-21 09:25:00'), self.picture())
+        texts = self.employee_messages(message)
+        self.assertEqual(len(texts), 1)
+        self.assertIn('Yo‘qlamangiz qabul qilindi', texts[0])
+        self.assertIn('09:25', texts[0])
+        self.assertIn('25 daq', texts[0])
+        with self.captureOnCommitCallbacks(execute=True):
+            ingest_event(event('2026-10-21 13:00:00'), self.picture())
+        self.assertEqual(len(self.employee_messages(message)), 1)   # once a day
+
+    @patch('core.telegram.configured', return_value=True)
+    @patch('core.telegram.message', return_value=True)
+    @patch('core.face.compare', return_value=0.1)
+    def test_secretary_approval_sends_the_receipt(self, compare, message, configured):
+        with self.captureOnCommitCallbacks(execute=True):
+            ingest_event(event('2026-10-21 08:40:00'), self.picture())
+        self.assertFalse(any('qabul qilindi' in t for t in self.employee_messages(message)))
+        secretary = User.objects.create_user('kotib', full_name='Kotib', role='secretary')
+        with self.captureOnCommitCallbacks(execute=True):
+            resolve_review(secretary, FaceReview.objects.get().pk, True)
+        self.assertTrue(any('qabul qilindi' in t for t in self.employee_messages(message)))

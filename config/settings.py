@@ -182,6 +182,13 @@ ATTENDANCE_DAY_START_HOUR = int(os.getenv('ATTENDANCE_DAY_START_HOUR', '7') or '
 # soatdan kelmaganlar ro'yxati (kotibга) yuboriladi. manage.py attendance_alerts.
 ATTENDANCE_LATE_HOUR = int(os.getenv('ATTENDANCE_LATE_HOUR', '9') or '9')
 ATTENDANCE_ABSENT_HOUR = int(os.getenv('ATTENDANCE_ABSENT_HOUR', '11') or '11')
+# Kechikayotganlarga eslatma shu soatdan (09:00 dan keyingi kirish baribir «Kechikdi» bo‘ladi).
+ATTENDANCE_LATE_ALERT_HOUR = int(os.getenv('ATTENDANCE_LATE_ALERT_HOUR', '10') or '10')
+# Dam olish kunlari (0 — dushanba … 6 — yakshanba): eslatma va «kelmadi» xabarlari yuborilmaydi.
+ATTENDANCE_WEEKEND_DAYS = {int(d) for d in os.getenv('ATTENDANCE_WEEKEND_DAYS', '5,6').split(',') if d.strip()}
+# Davomat yuritilmaydigan rollar (vergul bilan): ularning kirishi faqat eshik jurnaliga yoziladi,
+# kunlik davomat, Excel va kelish/kechikish/kelmaganlar xabarlarida ko‘rinmaydi.
+ATTENDANCE_EXEMPT_ROLES = [r.strip() for r in os.getenv('ATTENDANCE_EXEMPT_ROLES', 'chair').split(',') if r.strip()]
 # Hikvision access-hodisasining "major" turi (5 = access controller event).
 ATTENDANCE_DOOR_MAJOR = 5
 # Yuz taqqoslash (OpenCV YuNet + SFace). Faqat opencv-python kerak; model fayllari

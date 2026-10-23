@@ -33,6 +33,16 @@ def secretaries():
     return User.objects.filter(is_active=True, role=User.Role.SECRETARY)
 
 
+def is_exempt(user):
+    """Leadership whose comings and goings are not attendance (ATTENDANCE_EXEMPT_ROLES)."""
+    return user.role in settings.ATTENDANCE_EXEMPT_ROLES
+
+
+def tracked(people):
+    """Narrow a user queryset to the people whose attendance is kept."""
+    return people.exclude(role__in=settings.ATTENDANCE_EXEMPT_ROLES)
+
+
 def alert_once(subject, day, kind):
     """Record that this once-a-day alert was handled; True only the first time."""
     try:
@@ -55,6 +65,34 @@ def send_arrival(employee_id, first_entry_at):
     text = f'{employee.full_name} ishga keldi — soat {when}.'
     for secretary in secretaries():
         telegram.message(secretary, text)
+
+
+def confirm_present(day):
+    """Tell the employee, once a day, that their attendance counted — however it got there.
+
+    A clear face at the door, a later entry that cleared a doubt, or the
+    secretary's approval all end here; the marker keeps it to one message a day.
+    """
+    if day and day.status == Attendance.Status.PRESENT and alert_once(day.user, day.date,
+                                                                      AttendanceAlert.Kind.CHECKED_IN):
+        transaction.on_commit(lambda pk=day.pk: send_checked_in(pk))
+
+
+def send_checked_in(attendance_id):
+    """The employee's own receipt: when they were counted in, and how late if late."""
+    from . import telegram
+    if not telegram.configured():
+        return
+    day = Attendance.objects.filter(pk=attendance_id).select_related('user').first()
+    if not day or not day.first_entry_at:
+        return
+    text = (f'✅ Yo‘qlamangiz qabul qilindi: bugun ({day.date:%d.%m.%Y}) soat '
+            f'{timezone.localtime(day.first_entry_at):%H:%M} da keldingiz.')
+    late = late_minutes(day)
+    if late:
+        text += (f' Ish {settings.ATTENDANCE_LATE_HOUR}:00 dan boshlanadi — siz {duration_label(late)} '
+                 f'kechikdingiz.')
+    telegram.message(day.user, text, '/me/attendance/')
 
 
 def send_review_alert(review_id):
@@ -294,7 +332,10 @@ def ingest_event(event, picture=None):
         door_no=int(event.get('doorNo') or 0), dedupe_key=key)
     result = {'stored': True, 'event_id': access.pk, 'matched': bool(card),
               'user_id': card.user_id if card else None, 'first_entry': False}
-    if card:
+    if card and is_exempt(card.user):
+        # The door log keeps the entry; there is no attendance day, face check or alert.
+        result['reason'] = 'exempt'
+    elif card:
         fold = _fold_into_day(card.user, access)
         result.update(fold)
         # The face is checked on the day's first entry, and again on any entry while
@@ -302,7 +343,7 @@ def ingest_event(event, picture=None):
         if fold.get('first_entry') or fold.get('recheck'):
             if picture is not None:
                 _verify_face(access, fold.get('attendance_id'), picture, fold['date'])
-            settle_day(Attendance.objects.get(pk=fold['attendance_id']))
+            confirm_present(settle_day(Attendance.objects.get(pk=fold['attendance_id'])))
         # Tell the secretaries the employee arrived (once), after the row commits.
         if fold.get('first_entry') and alert_once(card.user, fold['date'], AttendanceAlert.Kind.ARRIVAL):
             transaction.on_commit(lambda uid=card.user_id, at=access.happened_at: send_arrival(uid, at))
@@ -517,6 +558,8 @@ def resolve_review(user, review_id, approve, reason=''):
     review.resolved_at, review.resolved_by, review.reason = timezone.now(), user, reason
     review.save(update_fields=['state', 'resolved_at', 'resolved_by', 'reason'])
     day = settle_day(review.attendance) if review.attendance else None
+    if approve:
+        confirm_present(day)
     # Warn the employee only when the day as a whole is lost: rejecting one doubtful
     # entry on a day another entry already confirmed costs them nothing.
     if not approve and (day is None or day.status == Attendance.Status.REJECTED):

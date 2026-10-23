@@ -12,7 +12,12 @@
 </div>
 {% endfor %}
 
-{% if not since %}
+{% if exempt %}
+<div class="notice">
+  <strong>Sizning davomatingiz yuritilmaydi</strong>
+  <p>Rahbariyat davomatdan ozod: kirishlaringiz faqat eshik jurnaliga yoziladi.</p>
+</div>
+{% elif not since %}
 <div class="notice warning">
   <strong>Davomatingiz hali yuritilmayapti</strong>
   <p>Domofondagi kartangiz hisobingizga bog‘lanmagan. Kotib referentga murojaat qiling — bog‘langandan keyin kirishlaringiz shu yerda ko‘rinadi.</p>

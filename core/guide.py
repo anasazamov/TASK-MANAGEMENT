@@ -159,13 +159,14 @@ SECTIONS = [
         ],
     },
     {
-        'id': 'my-attendance', 'title': 'Mening davomatim', 'icon': 'clock', 'roles': ALL,
+        'id': 'my-attendance', 'title': 'Mening davomatim', 'icon': 'clock',
+        'roles': ('deputy', 'head', 'office', 'secretary', 'employee'),
         'intro': 'Yo‘qlama eshikdagi domofon orqali avtomatik olinadi: kartangizni yoki PIN kodingizni kiritganingizda.',
         'steps': [
             'Kartani bosganda kamera yuzingizni oladi va tizimdagi rasmingiz bilan solishtiradi — kameraga to‘g‘ri qarang.',
             'Yo‘qlama Toshkent vaqti bilan 07:00 dan hisoblanadi; 09:00 dan keyingi birinchi kirish «Kechikdi» bo‘ladi.',
             'Yuz aniq tanilmasa, kirish kotib referent tekshiruviga tushadi va sizga Telegram’da xabar keladi. Keyingi kirishda yuzingizni aniq ko‘rsatsangiz, avtomatik tasdiqlanadi.',
-            '09:00 gacha kelmasangiz, Telegram’da eslatma keladi (uzrli sababingiz bo‘lsa — kelmaydi).',
+            'Kelganingizda Telegram’da «yo‘qlamangiz qabul qilindi» xabari keladi. 10:00 gacha kirmasangiz — «kechikyapsiz» eslatmasi, 11:00 gacha ham kirmasangiz — «kelmagan deb belgilandingiz» xabari (sababini shu xabardan bildirasiz). Ruxsatingiz bo‘lsa va dam olish kunlari bu xabarlar kelmaydi.',
             '«Mening davomatim» sahifasida oyma-oy kirishlar, kechikishlar va holatni ko‘rasiz.',
             'Kelolmasangiz yoki kechiksangiz (kasal, kechroq kelish, xizmat safari, ta’til, boshqa) — «Ruxsat so‘rash» tugmasini bosing, bir yoki bir necha kunga. O‘tib ketgan kun uchun o‘sha kun qatoridagi «Sababini bildirish» havolasidan foydalaning.',
             'So‘rov kotib referentga boradi; qaror Telegram orqali keladi. Ko‘rib chiqilmagan so‘rovni bekor qilishingiz mumkin.',

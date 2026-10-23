@@ -4,7 +4,10 @@
 </div>
 <div class="section-heading">
   <h2>{{ day_label }} <span class="count-pill">{{ weekday_label }}</span></h2>
-  <a class="button mini primary" href="?date={{ day|date:'Y-m-d' }}&amp;format=xlsx">Excel yuklab olish</a>
+  <div class="list-toolbar" style="margin:0">
+    <a class="button mini secondary" href="?date={{ day|date:'Y-m-d' }}&amp;format=xlsx">Excel yuklab olish</a>
+    <a class="button mini primary" href="?date={{ day|date:'Y-m-d' }}&amp;format=xlsx&amp;marked=1" title="Kelmaganlar qizil, kechikkanlar sariq, uzrlilar ko‘k">Belgilangan Excel</a>
+  </div>
 </div>
 <div class="att-summary">
   <span class="status-badge accepted">Keldi: <strong>{{ tally.present }}</strong></span>

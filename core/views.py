@@ -383,7 +383,8 @@ def pending_reviews_for(user):
 @login_required
 def attendance_daily(request):
     require(request.user.can_assign or request.user.can_oversee)
-    people = list(attendance_service.visible_employees(request.user).select_related('department').order_by('full_name'))
+    people = list(attendance_service.tracked(attendance_service.visible_employees(request.user))
+                  .select_related('department').order_by('full_name'))
     today = timezone.localdate()
     try:
         day = date.fromisoformat(request.GET.get('date', '')) if request.GET.get('date') else today
@@ -406,8 +407,9 @@ def attendance_daily(request):
                      'review': decisions.get(attendance.pk) if attendance else None,
                      'late': late, 'late_label': attendance_service.duration_label(late) if late else ''})
     if request.GET.get('format') == 'xlsx':
-        name = f'davomat-{day:%Y%m%d}.xlsx'
-        response = HttpResponse(reports.attendance_workbook(rows, day, request.user.short_name),
+        marked = request.GET.get('marked') == '1'
+        name = f"davomat-{day:%Y%m%d}{'-belgilangan' if marked else ''}.xlsx"
+        response = HttpResponse(reports.attendance_workbook(rows, day, request.user.short_name, marked=marked),
                                 content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         response['Content-Disposition'] = f'attachment; filename="{name}"'
         return response
@@ -435,7 +437,8 @@ def attendance_daily(request):
 @require_POST
 def attendance_excuse(request):
     require(request.user.can_assign or request.user.can_oversee)
-    employee = get_object_or_404(attendance_service.visible_employees(request.user), pk=request.POST.get('employee', ''))
+    employee = get_object_or_404(attendance_service.tracked(attendance_service.visible_employees(request.user)),
+                                 pk=request.POST.get('employee', ''))
     try:
         start, end, expected = _form_dates(request.POST)
     except ValueError:
@@ -506,7 +509,7 @@ def my_month_rows(user, first, today, since):
             state = 'excused'
         elif day == today and timezone.localtime().hour < settings.ATTENDANCE_ABSENT_HOUR:
             state = 'not_yet'
-        elif day.weekday() >= 5:
+        elif day.weekday() in settings.ATTENDANCE_WEEKEND_DAYS:
             state = 'weekend'
         else:
             state = 'absent'
@@ -527,7 +530,7 @@ def my_month_rows(user, first, today, since):
 def my_attendance(request):
     """The employee's own attendance by month, and their excuse requests."""
     today = timezone.localdate()
-    since = attendance_service.tracking_start(request.user)
+    since = None if attendance_service.is_exempt(request.user) else attendance_service.tracking_start(request.user)
     earliest = (since or today).replace(day=1)
     try:
         first = date.fromisoformat(request.GET['month'] + '-01') if request.GET.get('month') else today.replace(day=1)
@@ -546,6 +549,7 @@ def my_attendance(request):
         'previous_month': previous if previous >= earliest else None,
         'next_month': following if following <= today else None, 'since': since,
         'requests': requests, 'pending_requests': [r for r in requests if r.state == ExcuseRequest.State.PENDING],
+        'exempt': attendance_service.is_exempt(request.user),
         'late_hour': settings.ATTENDANCE_LATE_HOUR, 'day_start_hour': settings.ATTENDANCE_DAY_START_HOUR})
 
 
@@ -657,7 +661,7 @@ def access_events(request):
 @login_required
 def face_enrollments(request):
     require(request.user.can_oversee)
-    people = attendance_service.visible_employees(request.user)
+    people = attendance_service.tracked(attendance_service.visible_employees(request.user))
     if request.method == 'POST':
         person = get_object_or_404(people, pk=request.POST.get('employee', ''))
         photo = request.FILES.get('photo')

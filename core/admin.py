@@ -1,8 +1,9 @@
-"""Superuser-only view of the data. Workflow records stay read-only here.
+"""Full administration of every record, for superusers.
 
-Agent conversations, proposals and voice profiles are deliberately absent: they
-hold transcripts and biometric data that no administration screen needs. Enrolled
-faces are shown (photo only, never the embedding) because attendance depends on them.
+Nothing is locked here: every model can be added, changed and deleted. The site's
+own pages still go through the services (roles, history, notifications); an edit
+made here does not, so it writes no history and sends no message. Actions such as
+approving a face review or recounting a day call the services and do both.
 """
 from django import forms
 from django.contrib import admin, messages
@@ -16,34 +17,10 @@ from django.utils import timezone
 from django.utils.html import format_html
 
 from . import attendance as attendance_service
-from .models import (AccessCard, AccessEvent, Attendance, AttendanceAlert, AttendanceExcuse,
-                     DeadlineRequest, Department, Event, ExcuseRequest, FaceEnrollment, FaceReview,
-                     GeneratedPage, Notification, PushSubscription, Task, TaskAttachment, TaskParticipant,
-                     User)
-
-
-class ReadOnly:
-    """Changes belong to the services, which check roles and write history."""
-    def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-
-class TaskOwned(ReadOnly):
-    """Removable only along with the task it belongs to, never on its own.
-
-    Deleting a task asks Django whether everything hanging off it may go too,
-    and that question is answered yes only while the task's own delete page or
-    changelist is the view being served.
-    """
-    def has_delete_permission(self, request, obj=None):
-        match = request.resolver_match
-        return bool(match and match.url_name in ('core_task_delete', 'core_task_changelist'))
+from .models import (AccessCard, AccessEvent, AgentConversation, AgentProposal, AgentTurn, Attendance,
+                     AttendanceAlert, AttendanceExcuse, DeadlineRequest, Department, Event, ExcuseRequest,
+                     FaceEnrollment, FaceReview, GeneratedPage, Notification, PushSubscription, Task,
+                     TaskAttachment, TaskParticipant, User, VoiceProfile)
 
 
 class AccessCardInline(admin.TabularInline):
@@ -59,10 +36,10 @@ class CustomUserAdmin(UserAdmin):
     inlines = [AccessCardInline]
     fieldsets = UserAdmin.fieldsets + (
         ('Tashkilot', {'fields': ('full_name', 'job_title', 'role', 'department', 'supervised',
-                                  'phone', 'telegram_id')}),)
+                                  'phone', 'telegram_id')}),
+        ('Tanishtiruv', {'fields': ('onboarded_at', 'password_changed_at')}),)
     add_fieldsets = UserAdmin.add_fieldsets + (
         ('Tashkilot', {'fields': ('full_name', 'job_title', 'role', 'department', 'phone')}),)
-    readonly_fields = ['telegram_id']
     filter_horizontal = ['supervised']
     list_display = ['username', 'full_name', 'role', 'department', 'phone', 'linked', 'is_active']
     list_filter = ['role', 'is_active', 'department']
@@ -85,60 +62,71 @@ class DepartmentAdmin(admin.ModelAdmin):
 
 
 @admin.register(Task)
-class TaskAdmin(ReadOnly, admin.ModelAdmin):
+class TaskAdmin(admin.ModelAdmin):
     list_display = ['code', 'title', 'assignee', 'issuer', 'status', 'due_at', 'letter_number']
     list_filter = ['status', 'assignee__department']
     search_fields = ['title', 'description', 'letter_number', 'assignee__full_name']
     date_hierarchy = 'created_at'
 
-    def has_delete_permission(self, request, obj=None):
-        # A task entered by mistake can be removed here; its history, comments,
-        # deadline requests, participants and notifications go with it. A task
-        # that others were built on top of is still refused: delete those first.
-        return True
-
 
 @admin.register(TaskParticipant)
-class TaskParticipantAdmin(TaskOwned, admin.ModelAdmin):
+class TaskParticipantAdmin(admin.ModelAdmin):
     list_display = ['task', 'user', 'kind', 'part', 'status', 'created_at']
     list_filter = ['kind', 'status']
     search_fields = ['user__full_name', 'part']
 
 
 @admin.register(TaskAttachment)
-class TaskAttachmentAdmin(TaskOwned, admin.ModelAdmin):
+class TaskAttachmentAdmin(admin.ModelAdmin):
     list_display = ['name', 'task', 'size_label', 'uploaded_by', 'created_at']
     search_fields = ['name', 'task__title']
 
 
-@admin.register(Event, DeadlineRequest, Notification)
-class WorkflowAdmin(TaskOwned, admin.ModelAdmin):
+@admin.register(Event)
+class EventAdmin(admin.ModelAdmin):
+    list_display = ['created_at', 'task', 'actor', 'kind']
+    list_filter = ['kind']
+    search_fields = ['task__title', 'actor__full_name', 'body']
+    date_hierarchy = 'created_at'
+
+
+@admin.register(DeadlineRequest)
+class DeadlineRequestAdmin(admin.ModelAdmin):
+    list_display = ['created_at', 'task', 'requester', 'proposed_due_at', 'state']
+    list_filter = ['state']
+    search_fields = ['task__title', 'requester__full_name', 'reason']
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ['created_at', 'user', 'task', 'title', 'read_at']
+    list_filter = ['read_at']
+    search_fields = ['user__full_name', 'title', 'task__title']
+    date_hierarchy = 'created_at'
+
+
+@admin.register(AgentConversation, AgentTurn, AgentProposal, VoiceProfile)
+class AgentRecordAdmin(admin.ModelAdmin):
     pass
 
 
 @admin.register(GeneratedPage)
-class GeneratedPageAdmin(ReadOnly, admin.ModelAdmin):
+class GeneratedPageAdmin(admin.ModelAdmin):
     list_display = ['title', 'user', 'updated_at']
     search_fields = ['title', 'user__full_name']
 
-    def has_delete_permission(self, request, obj=None):
-        return True  # An unwanted page should be removable without touching the database.
-
 
 @admin.register(PushSubscription)
-class PushSubscriptionAdmin(ReadOnly, admin.ModelAdmin):
+class PushSubscriptionAdmin(admin.ModelAdmin):
     list_display = ['user', 'endpoint', 'created_at', 'failed_at']
     list_filter = ['failed_at']
     search_fields = ['user__full_name']
 
-    def has_delete_permission(self, request, obj=None):
-        return True  # Revoking a browser's subscription is an administrative action.
-
 
 # --- Attendance (door station) -------------------------------------------------
-# Days and reviews are derived by core.attendance (settle_day, resolve_review), so
-# here they are read-only and changed through actions that call those services:
-# a hand edit would leave the day disagreeing with its own entries.
+# Days and reviews are derived by core.attendance (settle_day, resolve_review). They
+# can be edited by hand here; the actions below go through those services instead,
+# and "Kunni qayta hisoblash" brings a hand-edited day back in line with its entries.
 
 def photo_response(file):
     from .views import streamed
@@ -216,15 +204,14 @@ class UnmatchedFilter(admin.SimpleListFilter):
 
 
 @admin.register(AccessEvent)
-class AccessEventAdmin(PhotoAdmin, ReadOnly, admin.ModelAdmin):
-    """The raw door log; an audit record, so nothing here is edited or deleted."""
+class AccessEventAdmin(PhotoAdmin, admin.ModelAdmin):
+    """The raw door log."""
     list_display = ['happened_at', 'person', 'device_name', 'card_no', 'employee_no', 'minor', 'confidence',
                     'has_photo', 'review_state']
     list_filter = [UnmatchedFilter, 'minor', 'door_no']
     search_fields = ['user__full_name', 'device_name', 'card_no', 'employee_no']
     date_hierarchy = 'happened_at'
     list_select_related = ['user', 'face_review']
-    exclude = ['photo']
     readonly_fields = ['preview']
 
     @admin.display(description='Xodim', ordering='user__full_name')
@@ -247,18 +234,14 @@ class AccessEventAdmin(PhotoAdmin, ReadOnly, admin.ModelAdmin):
 
 class ReviewInline(admin.TabularInline):
     model = FaceReview
-    fields = ['created_at', 'confidence', 'state', 'reason', 'resolved_by', 'resolved_at']
-    readonly_fields = fields
+    fields = ['event', 'created_at', 'confidence', 'state', 'reason', 'resolved_by', 'resolved_at']
+    raw_id_fields = ['event', 'resolved_by']
     extra = 0
-    can_delete = False
     show_change_link = True
-
-    def has_add_permission(self, request, obj=None):
-        return False
 
 
 @admin.register(Attendance)
-class AttendanceAdmin(ReadOnly, admin.ModelAdmin):
+class AttendanceAdmin(admin.ModelAdmin):
     list_display = ['date', 'user', 'status', 'entry_count', 'first', 'last', 'late']
     list_filter = ['status', 'user__department']
     search_fields = ['user__full_name', 'user__username']
@@ -294,8 +277,8 @@ class RejectForm(forms.Form):
 
 
 @admin.register(FaceReview)
-class FaceReviewAdmin(PhotoAdmin, ReadOnly, admin.ModelAdmin):
-    """Decisions go through resolve_review, which re-settles the day and warns the employee."""
+class FaceReviewAdmin(PhotoAdmin, admin.ModelAdmin):
+    """The approve/reject actions go through resolve_review: the day is re-settled and the employee told."""
     list_display = ['created_at', 'user', 'confidence_label', 'state', 'reason', 'resolved_by', 'resolved_at']
     list_filter = ['state']
     search_fields = ['user__full_name', 'reason']
@@ -372,8 +355,8 @@ class AttendanceExcuseAdmin(admin.ModelAdmin):
 
 
 @admin.register(ExcuseRequest)
-class ExcuseRequestAdmin(ReadOnly, admin.ModelAdmin):
-    """Employees' own requests. Decided on the Uzr so'rovlari page, which also tells them."""
+class ExcuseRequestAdmin(admin.ModelAdmin):
+    """Employees' own requests. Deciding on the Ruxsat so'rovlari page also tells them."""
     list_display = ['created_at', 'user', 'period_label', 'kind', 'state', 'reason', 'resolved_by', 'resolved_at']
     list_filter = ['state', 'kind']
     search_fields = ['user__full_name', 'note', 'reason']
@@ -411,33 +394,31 @@ class EnrollmentForm(forms.ModelForm):
 
 @admin.register(FaceEnrollment)
 class FaceEnrollmentAdmin(PhotoAdmin, admin.ModelAdmin):
-    """The reference faces. The embedding itself is never shown or edited."""
+    """The reference faces. Upload a photo to (re)compute the embedding."""
     form = EnrollmentForm
     list_display = ['user', 'model', 'updated_at']
     search_fields = ['user__full_name', 'user__username']
     autocomplete_fields = ['user']
 
     def get_readonly_fields(self, request, obj=None):
-        # A face belongs to one person: to move it, delete it and enroll the other one.
-        return ['user', 'preview', 'model', 'updated_at'] if obj else []
+        return ['preview', 'model', 'updated_at'] if obj else []
 
     def save_model(self, request, obj, form, change):
         image = form.cleaned_data.get('image')
         if image:
             saved = attendance_service.enroll_face(obj.user, image)
             obj.pk = saved.pk   # the admin's "saved" message and redirect need it
+        else:
+            super().save_model(request, obj, form, change)
 
 
 @admin.register(AttendanceAlert)
-class AttendanceAlertAdmin(ReadOnly, admin.ModelAdmin):
+class AttendanceAlertAdmin(admin.ModelAdmin):
     """Once-a-day markers. Deleting one lets that alert go out again on the next run."""
     list_display = ['date', 'kind', 'subject', 'created_at']
     list_filter = ['kind']
     search_fields = ['subject__full_name']
     date_hierarchy = 'date'
-
-    def has_delete_permission(self, request, obj=None):
-        return True
 
 
 admin.site.site_header = 'Topshiriq nazorati · Administratsiya'

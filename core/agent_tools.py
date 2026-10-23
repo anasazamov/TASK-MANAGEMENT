@@ -160,7 +160,7 @@ def get_task(user, pk):
 
 def people(user):
     if user.is_chair or user.can_oversee:
-        return User.objects.filter(is_active=True)
+        return User.objects.filter(is_active=True, is_superuser=False)
     if user.is_deputy:
         return User.objects.filter(Q(department_id__in=user.supervised_ids) | Q(pk=user.pk), is_active=True)
     if user.is_office:

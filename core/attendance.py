@@ -202,7 +202,8 @@ def visible_employees(user):
     deputy sees the departments they answer for, a head their own department, and
     anyone else only themselves.
     """
-    people = User.objects.filter(is_active=True)
+    # The site administrator account is not a member of staff.
+    people = User.objects.filter(is_active=True, is_superuser=False)
     if user.is_chair or user.can_oversee:
         return people
     if user.is_deputy:

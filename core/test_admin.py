@@ -32,13 +32,14 @@ class AdminTests(TestCase):
         self.assertContains(page, '998915471202')  # Phone and Telegram state are visible.
         self.assertContains(page, 'Telegram')
 
-    def test_workflow_records_cannot_be_edited_by_hand(self):
+    def test_every_record_can_be_added_and_edited(self):
         self.client.force_login(self.root)
-        for path in ['task', 'taskparticipant', 'event', 'notification']:
+        for path in ['task', 'taskparticipant', 'event', 'notification', 'deadlinerequest', 'agentconversation',
+                     'agentproposal', 'voiceprofile']:
             with self.subTest(model=path):
-                self.assertEqual(self.client.get(f'/admin/core/{path}/add/').status_code, 403)
+                self.assertEqual(self.client.get(f'/admin/core/{path}/add/').status_code, 200)
         response = self.client.get(f'/admin/core/task/{self.task.pk}/change/')
-        self.assertNotContains(response, 'name="title"')
+        self.assertContains(response, 'name="title"')
 
     def test_a_task_can_be_deleted_with_everything_that_hangs_off_it(self):
         Event.objects.create(task=self.task, actor=self.head, kind='comment', body='Izoh')
@@ -52,19 +53,26 @@ class AdminTests(TestCase):
         self.assertFalse(Notification.objects.exists())
         self.assertFalse(TaskParticipant.objects.exists())
 
-    def test_history_cannot_be_deleted_on_its_own_page(self):
+    def test_history_can_be_deleted_on_its_own_page(self):
         event = Event.objects.create(task=self.task, actor=self.head, kind='comment', body='Izoh')
         self.client.force_login(self.root)
-        self.assertEqual(self.client.get(f'/admin/core/event/{event.pk}/delete/').status_code, 403)
         self.client.post(f'/admin/core/event/{event.pk}/delete/', {'post': 'yes'})
-        self.assertTrue(Event.objects.filter(pk=event.pk).exists())
+        self.assertFalse(Event.objects.filter(pk=event.pk).exists())
 
-    def test_a_task_carrying_sub_tasks_is_refused(self):
+    def test_a_task_goes_with_its_sub_tasks(self):
         child = Task.objects.create(issuer=self.employee, assignee=self.head, title='Quyi', parent=self.task)
         self.client.force_login(self.root)
         self.client.post(f'/admin/core/task/{self.task.pk}/delete/', {'post': 'yes'})
-        self.assertTrue(Task.objects.filter(pk=self.task.pk).exists())
-        child.delete()
+        self.assertFalse(Task.objects.filter(pk__in=[self.task.pk, child.pk]).exists())
+
+    def test_deleting_a_user_keeps_the_history_they_wrote(self):
+        other = User.objects.create_user('yordamchi', full_name='Sinov Yordamchi')
+        event = Event.objects.create(task=self.task, actor=other, kind='comment', body='Izoh')
+        self.client.force_login(self.root)
+        self.client.post(f'/admin/core/user/{other.pk}/delete/', {'post': 'yes'})
+        self.assertFalse(User.objects.filter(pk=other.pk).exists())
+        event.refresh_from_db()
+        self.assertIsNone(event.actor)
 
     def test_module_and_wasm_files_keep_the_type_the_browser_demands(self):
         # A server without these registered hands out application/octet-stream,
@@ -72,12 +80,26 @@ class AdminTests(TestCase):
         self.assertEqual(mimetypes.guess_type('ort-wasm-simd-threaded.mjs')[0], 'text/javascript')
         self.assertEqual(mimetypes.guess_type('ort-wasm-simd-threaded.wasm')[0], 'application/wasm')
 
-    def test_private_records_are_not_exposed(self):
-        registered = {model for model in admin.site._registry}
-        for model in [AgentConversation, AgentProposal, VoiceProfile]:
-            self.assertNotIn(model, registered)
+    def test_every_model_is_in_the_admin(self):
+        from django.apps import apps
+        registered = set(admin.site._registry)
+        for model in apps.get_app_config('core').get_models():
+            self.assertIn(model, registered, model.__name__)
 
     def test_only_a_superuser_reaches_the_admin(self):
         self.client.force_login(self.head)
         response = self.client.get('/admin/core/user/')
         self.assertIn(response.status_code, (302, 403))
+
+
+class AdministratorIsNotStaffTests(TestCase):
+    def test_superuser_stays_out_of_staff_lists(self):
+        from .attendance import visible_employees
+        from .permissions import assignees_for, controllers_for
+        root = User.objects.create_superuser('admin', password='Testing-123!')
+        chair = User.objects.create_user('rais', full_name='Sinov Rais', role='chair')
+        worker = User.objects.create_user('xodim', full_name='Sinov Xodim')
+        self.assertNotIn(root, visible_employees(chair))
+        self.assertNotIn(root, assignees_for(chair))
+        self.assertNotIn(root, controllers_for(chair))
+        self.assertIn(worker, visible_employees(chair))

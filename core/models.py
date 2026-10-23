@@ -34,17 +34,17 @@ class User(AbstractUser):
     job_title = models.CharField('Lavozimi', max_length=180, blank=True)
     phone = models.CharField('Telefon', max_length=20, blank=True,
                              help_text='Telegram orqali kirish uchun: 998901234567')
-    telegram_id = models.BigIntegerField('Telegram ID', null=True, blank=True, unique=True, editable=False)
+    telegram_id = models.BigIntegerField('Telegram ID', null=True, blank=True, unique=True)
     role = models.CharField('Rol', max_length=12, choices=Role.choices, default=Role.EMPLOYEE)
-    department = models.ForeignKey(Department, null=True, blank=True, on_delete=models.PROTECT, related_name='employees')
+    department = models.ForeignKey(Department, null=True, blank=True, on_delete=models.SET_NULL, related_name='employees')
     # A deputy works across departments rather than inside one: these are the
     # departments they answer for, and the whole of their reach is derived here.
     supervised = models.ManyToManyField(Department, blank=True, related_name='deputies',
                                         verbose_name='Nazorat qiladigan bo‘linmalar')
     # Onboarding: when the welcome checklist was closed, and when the person set their
     # own password (a reset by the chair does not count) — so that step ticks itself.
-    onboarded_at = models.DateTimeField(null=True, blank=True, editable=False)
-    password_changed_at = models.DateTimeField(null=True, blank=True, editable=False)
+    onboarded_at = models.DateTimeField('Tanishtiruv yopilgan', null=True, blank=True)
+    password_changed_at = models.DateTimeField('Parolni o‘zi almashtirgan', null=True, blank=True)
 
     class Meta:
         ordering = ['full_name', 'username']
@@ -143,7 +143,7 @@ class Task(models.Model):
     description = models.TextField('Izoh va talablar', blank=True)
     issuer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='issued_tasks')
     assignee = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='assigned_tasks')
-    parent = models.ForeignKey('self', null=True, blank=True, on_delete=models.PROTECT, related_name='children')
+    parent = models.ForeignKey('self', null=True, blank=True, on_delete=models.CASCADE, related_name='children')
     due_at = models.DateTimeField('Muddat', null=True, blank=True)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.ACTIVE)
     created_at = models.DateTimeField(default=timezone.now)
@@ -237,7 +237,7 @@ class TaskAttachment(models.Model):
     file = models.FileField('Fayl', upload_to=attachment_path, max_length=300)
     name = models.CharField(max_length=180)
     size = models.PositiveBigIntegerField()
-    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='+')
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
@@ -263,11 +263,11 @@ class TaskParticipant(models.Model):
         CONTROLLER = 'controller', 'Nazoratchi'
 
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='participants')
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='task_parts')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='task_parts')
     kind = models.CharField(max_length=12, choices=Kind.choices, default=Kind.EXECUTOR)
     part = models.CharField('Ijro qismi', max_length=240, blank=True)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.ACTIVE)
-    added_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    added_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='+')
     created_at = models.DateTimeField(default=timezone.now)
     submitted_at = models.DateTimeField(null=True, blank=True)
     accepted_at = models.DateTimeField(null=True, blank=True)
@@ -291,13 +291,13 @@ class DeadlineRequest(models.Model):
         REJECTED = 'rejected', 'Rad etildi'
 
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='deadline_requests')
-    requester = models.ForeignKey(User, on_delete=models.PROTECT, related_name='+')
+    requester = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name='+')
     proposed_due_at = models.DateTimeField()
     reason = models.TextField()
     state = models.CharField(max_length=12, choices=State.choices, default=State.PENDING)
     created_at = models.DateTimeField(default=timezone.now)
     resolved_at = models.DateTimeField(null=True)
-    resolved_by = models.ForeignKey(User, null=True, on_delete=models.PROTECT, related_name='+')
+    resolved_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name='+')
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['task'], condition=Q(state='pending'), name='one_pending_deadline_request')]
@@ -316,10 +316,10 @@ class Event(models.Model):
         ALERT = 'alert', 'Ogohlantirish'
         PART = 'part', 'Ijro qismi'
 
-    # History follows the task it describes: nothing may delete an event on its
-    # own, but a task removed in the admin takes its own record with it.
+    # History follows the task it describes; a deleted user leaves the record in
+    # place with no actor rather than taking it away.
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='events')
-    actor = models.ForeignKey(User, null=True, on_delete=models.PROTECT, related_name='+')
+    actor = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name='+')
     kind = models.CharField(max_length=16, choices=Kind.choices)
     body = models.TextField()
     created_at = models.DateTimeField(default=timezone.now)

@@ -57,10 +57,10 @@ class AttendanceAdminTests(TestCase):
                              200, name)
         self.assertEqual(self.client.get(reverse('admin:core_user_change', args=[self.employee.pk])).status_code, 200)
 
-    def test_event_log_is_read_only(self):
+    def test_event_log_can_be_deleted(self):
         url = reverse('admin:core_accessevent_delete', args=[self.event.pk])
-        self.assertEqual(self.client.post(url, {'post': 'yes'}).status_code, 403)
-        self.assertTrue(AccessEvent.objects.exists())
+        self.client.post(url, {'post': 'yes'})
+        self.assertFalse(AccessEvent.objects.filter(pk=self.event.pk).exists())
 
     def test_review_photo_only_for_admins(self):
         review = self.pending_review()

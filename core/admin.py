@@ -35,14 +35,14 @@ class AccessCardInline(admin.TabularInline):
 class CustomUserAdmin(UserAdmin):
     inlines = [AccessCardInline]
     fieldsets = UserAdmin.fieldsets + (
-        ('Tashkilot', {'fields': ('full_name', 'job_title', 'role', 'department', 'supervised',
+        ('Tashkilot', {'fields': ('full_name', 'job_title', 'role', 'is_hr', 'department', 'supervised',
                                   'phone', 'telegram_id')}),
         ('Tanishtiruv', {'fields': ('onboarded_at', 'password_changed_at')}),)
     add_fieldsets = UserAdmin.add_fieldsets + (
         ('Tashkilot', {'fields': ('full_name', 'job_title', 'role', 'department', 'phone')}),)
     filter_horizontal = ['supervised']
     list_display = ['username', 'full_name', 'role', 'department', 'phone', 'linked', 'is_active']
-    list_filter = ['role', 'is_active', 'department']
+    list_filter = ['role', 'is_hr', 'is_active', 'department']
     search_fields = ['username', 'full_name', 'phone']
     ordering = ['full_name']
 

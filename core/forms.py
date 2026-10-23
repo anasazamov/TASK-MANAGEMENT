@@ -144,7 +144,7 @@ class DepartmentForm(forms.ModelForm):
 class EmployeeForm(UserCreationForm):
     class Meta:
         model = User
-        fields = ['full_name', 'username', 'job_title', 'phone', 'department', 'role', 'supervised',
+        fields = ['full_name', 'username', 'job_title', 'phone', 'department', 'role', 'supervised', 'is_hr',
                   'password1', 'password2']
         labels = {'username': 'Login', 'department': 'Bo‘linma'}
         help_texts = {'username': 'Lotin harflari, raqamlar va @/./+/-/_ belgilaridan foydalaning.'}
@@ -179,7 +179,7 @@ class EmployeeForm(UserCreationForm):
 class EmployeeEditForm(forms.ModelForm):
     class Meta:
         model = User
-        fields = ['full_name', 'job_title', 'phone', 'department', 'role', 'supervised']
+        fields = ['full_name', 'job_title', 'phone', 'department', 'role', 'supervised', 'is_hr']
         labels = {'department': 'Bo‘linma'}
 
     def __init__(self, *args, **kwargs):

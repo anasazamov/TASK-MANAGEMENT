@@ -219,8 +219,24 @@ SECTIONS = [
 ]
 
 
-def sections_for(role):
-    return [section for section in SECTIONS if role in section['roles']]
+# Shown to whoever carries the HR flag, whatever their role.
+HR_SECTION = {
+    'id': 'hr', 'title': 'HR: xodimlar davomati va statistikasi', 'icon': 'users', 'roles': (),
+    'intro': 'Sizda HR (kadrlar xizmati) huquqi bor: butun tashkilot bo‘yicha ko‘rasiz va qaror qilasiz.',
+    'steps': [
+        '«Xodimlar → Statistika» — barcha xodimlarning topshiriq yuklamasi, hafta bo‘yicha va Excel’ga.',
+        '«Xodimlar → Davomat» — barcha xodimlarning kunlik davomati; «Belgilangan Excel» kelmaganlarni bo‘yab beradi.',
+        '«Tekshiruvlar» — yuzi tanilmagan kirishlarni tasdiqlash yoki sabab bilan rad etish.',
+        '«Ruxsat so‘rovlari» — xodimlar yuborgan so‘rovlarni tasdiqlash yoki sabab bilan rad etish; qaror xodimga Telegram’da boradi.',
+        '«Yuzlar» — xodimga yuz rasmini biriktirish; qatordagi «Sabab kiritish» — xodim aytgan sababni yozish.',
+        'Telegram orqali sizga ham «Yuz tekshiruvi kerak» va «Ruxsat so‘rovi» xabarlari keladi.',
+    ],
+}
+
+
+def sections_for(role, is_hr=False):
+    sections = [section for section in SECTIONS if role in section['roles']]
+    return sections + [HR_SECTION] if is_hr else sections
 
 
 def onboarding_steps(user):
@@ -244,7 +260,7 @@ def onboarding_steps(user):
     else:
         steps.append({'title': 'Topshiriqlaringizni ko‘ring', 'text': 'Sizga berilgan topshiriqlar va ularning muddatlari.',
                       'url': reverse('tasks'), 'action': 'Topshiriqlar', 'done': None})
-    if user.can_oversee:
+    if user.can_manage_attendance:
         steps.append({'title': 'Davomat nazoratini ko‘ring', 'text': 'Yuzlar, tekshiruvlar va ruxsat so‘rovlari shu yerda.',
                       'url': reverse('attendance_daily'), 'action': 'Davomat', 'done': None})
     else:

@@ -341,7 +341,7 @@ def perform_action(request, pk):
 
 @login_required
 def employees(request):
-    require(request.user.can_assign or request.user.can_oversee)
+    require(request.user.sees_employees)
     week = request.GET.get('week', '')
     period = reports.parse_week(week)
     rows = reports.employee_stats(request.user, period)
@@ -374,7 +374,7 @@ def day_chips(day, today, count=14):
 
 def pending_reviews_for(user):
     """Open face reviews this user decides on — the badge on the Davomat tab."""
-    if not user.can_oversee:
+    if not user.can_manage_attendance:
         return 0
     return FaceReview.objects.filter(state=FaceReview.State.PENDING,
                                      user__in=attendance_service.visible_employees(user)).count()
@@ -382,7 +382,7 @@ def pending_reviews_for(user):
 
 @login_required
 def attendance_daily(request):
-    require(request.user.can_assign or request.user.can_oversee)
+    require(request.user.sees_employees)
     people = list(attendance_service.tracked(attendance_service.visible_employees(request.user))
                   .select_related('department').order_by('full_name'))
     today = timezone.localdate()
@@ -436,7 +436,7 @@ def attendance_daily(request):
 @login_required
 @require_POST
 def attendance_excuse(request):
-    require(request.user.can_assign or request.user.can_oversee)
+    require(request.user.sees_employees)
     employee = get_object_or_404(attendance_service.tracked(attendance_service.visible_employees(request.user)),
                                  pk=request.POST.get('employee', ''))
     try:
@@ -457,7 +457,7 @@ def attendance_excuse(request):
 @login_required
 @require_POST
 def attendance_excuse_delete(request, pk):
-    require(request.user.can_assign or request.user.can_oversee)
+    require(request.user.sees_employees)
     excuse = get_object_or_404(AttendanceExcuse.objects.filter(
         user__in=attendance_service.visible_employees(request.user)), pk=pk)
     day = excuse.date
@@ -601,7 +601,7 @@ def my_excuse_cancel(request, pk):
 
 @login_required
 def excuse_requests(request):
-    require(request.user.can_oversee)
+    require(request.user.can_manage_attendance)
     scope = ExcuseRequest.objects.filter(user__in=attendance_service.visible_employees(request.user))
     pending = list(scope.filter(state=ExcuseRequest.State.PENDING).select_related('user', 'user__department')
                    .order_by('start', 'created_at'))
@@ -616,7 +616,7 @@ def excuse_requests(request):
 @login_required
 @require_POST
 def excuse_request_action(request, pk):
-    require(request.user.can_oversee)
+    require(request.user.can_manage_attendance)
     get_object_or_404(ExcuseRequest.objects.filter(user__in=attendance_service.visible_employees(request.user)), pk=pk)
     approve = request.POST.get('decision') == 'approve'
     try:
@@ -631,7 +631,7 @@ def excuse_request_action(request, pk):
 
 @login_required
 def access_events(request):
-    require(request.user.can_assign or request.user.can_oversee)
+    require(request.user.sees_employees)
     people = attendance_service.visible_employees(request.user)
     now = timezone.localtime()
     default_from = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -646,7 +646,7 @@ def access_events(request):
     end = parse(request.GET.get('to'), now)
     events = AccessEvent.objects.filter(happened_at__gte=start, happened_at__lte=end).select_related('user', 'user__department')
     # Everyone in scope, plus unmatched events for those who see the whole org.
-    if request.user.is_chair or request.user.can_oversee:
+    if request.user.is_chair or request.user.can_oversee or request.user.is_hr:
         events = events.filter(Q(user__in=people) | Q(user__isnull=True))
     else:
         events = events.filter(user__in=people)
@@ -660,7 +660,7 @@ def access_events(request):
 
 @login_required
 def face_enrollments(request):
-    require(request.user.can_oversee)
+    require(request.user.can_manage_attendance)
     people = attendance_service.tracked(attendance_service.visible_employees(request.user))
     if request.method == 'POST':
         person = get_object_or_404(people, pk=request.POST.get('employee', ''))
@@ -683,7 +683,7 @@ def face_enrollments(request):
 
 @login_required
 def face_reviews(request):
-    require(request.user.can_oversee)
+    require(request.user.can_manage_attendance)
     scope = FaceReview.objects.filter(user__in=attendance_service.visible_employees(request.user))
     reviews = scope.filter(state=FaceReview.State.PENDING).select_related('user', 'event', 'attendance')
     # Decided reviews stay visible: who decided, when, and why — the audit trail.
@@ -697,7 +697,7 @@ def face_reviews(request):
 @login_required
 @require_POST
 def face_review_action(request, pk):
-    require(request.user.can_oversee)
+    require(request.user.can_manage_attendance)
     get_object_or_404(FaceReview.objects.filter(user__in=attendance_service.visible_employees(request.user)), pk=pk)
     approve = request.POST.get('decision') == 'approve'
     try:
@@ -711,7 +711,7 @@ def face_review_action(request, pk):
 
 @login_required
 def review_capture(request, pk):
-    require(request.user.can_oversee)
+    require(request.user.can_manage_attendance)
     review = get_object_or_404(FaceReview.objects.filter(
         user__in=attendance_service.visible_employees(request.user)), pk=pk)
     if not review.event.photo:
@@ -721,7 +721,7 @@ def review_capture(request, pk):
 
 @login_required
 def enrollment_photo(request, pk):
-    require(request.user.can_oversee)
+    require(request.user.can_manage_attendance)
     enrollment = get_object_or_404(FaceEnrollment.objects.filter(
         user__in=attendance_service.visible_employees(request.user)), pk=pk)
     return streamed(FileResponse(enrollment.photo.open('rb'), content_type='image/jpeg'))
@@ -969,7 +969,7 @@ def guide_page(request):
         'page_title': 'Qo‘llanma', 'subtitle': 'Tizimdan foydalanish bo‘yicha yo‘riqnoma',
         'role': role, 'role_info': guide.ROLES[role], 'own_role': request.user.role,
         'roles': [(key, info['label']) for key, info in guide.ROLES.items()],
-        'sections': guide.sections_for(role)})
+        'sections': guide.sections_for(role, is_hr=request.user.is_hr and role == request.user.role)})
 
 
 @login_required

@@ -33,6 +33,12 @@ def secretaries():
     return User.objects.filter(is_active=True, role=User.Role.SECRETARY)
 
 
+def deciders():
+    """Who is asked to decide face reviews and permission requests: secretaries and HR."""
+    from django.db.models import Q
+    return User.objects.filter(Q(role=User.Role.SECRETARY) | Q(is_hr=True), is_active=True)
+
+
 def is_exempt(user):
     """Leadership whose comings and goings are not attendance (ATTENDANCE_EXEMPT_ROLES)."""
     return user.role in settings.ATTENDANCE_EXEMPT_ROLES
@@ -105,7 +111,7 @@ def send_review_alert(review_id):
         return
     detail = 'kadrda yuz topilmadi' if review.confidence is None else f'moslik {review.confidence:.0%}'
     text = f'Yuz tekshiruvi kerak: {review.user.full_name} ({detail}). Tasdiqlang yoki rad eting.'
-    for secretary in secretaries():
+    for secretary in deciders():
         telegram.message(secretary, text, '/employees/reviews/')
 
 
@@ -242,7 +248,7 @@ def visible_employees(user):
     """
     # The site administrator account is not a member of staff.
     people = User.objects.filter(is_active=True, is_superuser=False)
-    if user.is_chair or user.can_oversee:
+    if user.is_chair or user.can_oversee or user.is_hr:
         return people
     if user.is_deputy:
         return people.filter(department_id__in=user.supervised_ids)
@@ -497,7 +503,7 @@ def send_excuse_request_alert(request_id):
         return
     text = (f'Ruxsat so‘rovi: {item.user.full_name} — {item.period_label}, {item.label}. '
             f'Tasdiqlang yoki rad eting.')
-    for secretary in secretaries():
+    for secretary in deciders():
         telegram.message(secretary, text, '/employees/excuses/')
 
 

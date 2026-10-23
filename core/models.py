@@ -43,6 +43,11 @@ class User(AbstractUser):
                                         verbose_name='Nazorat qiladigan bo‘linmalar')
     # Onboarding: when the welcome checklist was closed, and when the person set their
     # own password (a reset by the chair does not count) — so that step ticks itself.
+    # HR (kadrlar xizmati): on top of the role, sees every employee's statistics and
+    # attendance and decides face reviews and permission requests like the secretary.
+    is_hr = models.BooleanField('HR (kadrlar xizmati)', default=False,
+                                help_text='Barcha xodimlar statistikasi va davomatini ko‘radi, tekshiruv va '
+                                          'ruxsat so‘rovlari bo‘yicha qaror qiladi.')
     onboarded_at = models.DateTimeField('Tanishtiruv yopilgan', null=True, blank=True)
     password_changed_at = models.DateTimeField('Parolni o‘zi almashtirgan', null=True, blank=True)
 
@@ -89,6 +94,16 @@ class User(AbstractUser):
     def can_oversee(self):
         """Sees every task and the employee statistics across all departments."""
         return self.role in [self.Role.CHAIR, self.Role.SECRETARY]
+
+    @property
+    def can_manage_attendance(self):
+        """Decides attendance: face reviews, permission requests, enrolled faces."""
+        return self.can_oversee or self.is_hr
+
+    @property
+    def sees_employees(self):
+        """Has the Xodimlar page (statistics and attendance)."""
+        return self.can_assign or self.can_oversee or self.is_hr
 
     def __str__(self):
         return self.short_name

@@ -29,7 +29,8 @@ def current_week():
 
 
 def employee_stats(user, period=None):
-    tasks = Task.objects.visible_to(user)
+    # HR counts every employee's tasks; the tasks themselves stay within their own reach.
+    tasks = Task.objects.all() if user.is_hr else Task.objects.visible_to(user)
     if period:
         tasks = tasks.filter(created_at__gte=period[0], created_at__lt=period[1])
     now = timezone.now()
@@ -44,8 +45,16 @@ def employee_stats(user, period=None):
     counted = {row['assignee_id'] for row in rows}
     rows += [{'assignee_id': person.pk, 'assignee__full_name': person.full_name,
               'total': 0, 'in_progress': 0, 'overdue': 0, 'unseen': 0}
-             for person in assignees_for(user).exclude(pk__in=counted)]
+             for person in staff_for_stats(user).exclude(pk__in=counted)]
     return sorted(rows, key=lambda row: (-row['total'], row['assignee__full_name']))
+
+
+def staff_for_stats(user):
+    """Everyone who belongs in this user's workload table, even with nothing on them."""
+    if user.is_hr:
+        from .models import User
+        return User.objects.filter(is_active=True, is_superuser=False).exclude(role=User.Role.CHAIR)
+    return assignees_for(user)
 
 
 def period_label(period):

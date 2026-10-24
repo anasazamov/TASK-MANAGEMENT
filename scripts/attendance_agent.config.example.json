@@ -15,5 +15,12 @@
   "max_results": 30,
   "fallback_snapshot": true,
   "snapshot_path": "/ISAPI/Streaming/channels/101/picture?videoResolutionWidth=1920&videoResolutionHeight=1080",
-  "state_file": "attendance_agent.state.json"
+  "state_file": "attendance_agent.state.json",
+
+  "frame_buffer": true,
+  "frame_buffer_seconds": 8,
+  "frame_interval_seconds": 0.2,
+  "frame_before_seconds": 1.5,
+  "frame_after_seconds": 0.5,
+  "max_frames": 4
 }

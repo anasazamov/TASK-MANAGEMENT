@@ -206,16 +206,27 @@ def _verify_face(access, attendance_id, picture, day):
     enrollment = FaceEnrollment.objects.filter(user=access.user).first()
     if not enrollment or not face.available():
         return
-    try:
-        picture_bytes = picture.read()
-    except (OSError, ValueError):
+    frames = []
+    for item in (picture if isinstance(picture, (list, tuple)) else [picture]):
+        try:
+            data = item.read()
+        except (OSError, ValueError):
+            continue
+        if data:
+            # The station squeezes its snapshot sideways; compare (and keep for review)
+            # each frame at its true shape, as the secretary would see the person.
+            frames.append(face.restore_aspect(data))
+    if not frames:
         return
-    if not picture_bytes:
-        return
-    # The station squeezes its snapshot sideways; compare (and keep for review) the
-    # frame at its true shape, as the secretary would see the person.
-    picture_bytes = face.restore_aspect(picture_bytes)
-    confidence = face.compare(enrollment.embedding, picture_bytes)  # None: no face in frame
+    # Several frames from around the swipe, each possibly with several people: the
+    # card holder's best match decides. None means no frame showed any face; the
+    # middle frame is then kept, nearest the swipe itself.
+    scored = [(face.best_match(enrollment.embedding, data), data) for data in frames]
+    found = [pair for pair in scored if pair[0] is not None]
+    if found:
+        confidence, picture_bytes = max(found, key=lambda pair: pair[0])
+    else:
+        confidence, picture_bytes = None, frames[len(frames) // 2]
     access.face_confidence = confidence
     attendance = Attendance.objects.filter(pk=attendance_id).first()
     previous = attendance.status if attendance else None
@@ -268,12 +279,13 @@ def parse_request(request):
     content_type = request.META.get('CONTENT_TYPE', '')
     if 'multipart' in content_type.lower():
         raw = request.POST.get('event')
-        picture = request.FILES.get('picture')
+        # The agent may send several frames from around the swipe; all are tried.
+        pictures = request.FILES.getlist('picture')
         try:
             event = json.loads(raw) if raw else None
         except ValueError:
             event = None
-        return (event if isinstance(event, dict) else None), picture
+        return (event if isinstance(event, dict) else None), pictures or None
     try:
         data = json.loads(request.body or b'{}')
     except ValueError:

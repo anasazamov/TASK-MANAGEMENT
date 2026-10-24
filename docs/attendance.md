@@ -124,6 +124,18 @@ kadr kech qolib bo'sh eshikni olishi mumkin.
   - past → surat saqlanadi, davomat «Tekshiruvda» bo'ladi, **Xodimlar → Davomat → Tekshiruvlar**
     sahifasida kotib referent tasdiqlaydi yoki rad etadi (botga ham xabar boradi).
 
+### Kadrlar buferi (karta bosilgan paytdagi yuz)
+
+Agent kameradan uzluksiz (~0,6 s oralig'ida) kadr olib, oxirgi 8 soniyani xotirada saqlaydi.
+Kirish hodisasi kelganda karta bosilishidan 1,5 s oldin va 0,5 s keyingi 4 tagacha kadr
+yuboriladi; server har bir kadrdagi barcha yuzlarni karta egasi bilan solishtiradi va eng
+yuqori moslikni oladi (navbatda orqadagi odam xalaqit bermaydi). Bir necha kadrdan eng
+yaxshisi olingani uchun `FACE_MATCH_THRESHOLD` ni haqiqiy ballarni ko‘rib ~0.45 ga oshirish tavsiya etiladi. Domofon soati farqi har
+10 daqiqada o'lchanadi. Bufer qamrab olmaydigan eski hodisa (agent to'xtab turgan bo'lsa)
+rasmsiz yuboriladi — bo'sh koridor kadri soxta tekshiruv ochmasligi uchun. Sozlamalar:
+`frame_buffer`, `frame_buffer_seconds`, `frame_interval_seconds`, `frame_before_seconds`,
+`frame_after_seconds`, `max_frames`.
+
 ### Kadr nisbati (muhim)
 
 DS-KV6124 ning oddiy `/picture` surati 704x576 — 16:9 sensordan **yon tomonga siqilgan**,

@@ -92,17 +92,21 @@ def restore_aspect(image_bytes):
         return image_bytes
 
 
-def embed(image_bytes):
-    """The SFace feature vector of the largest detected face, as a list, or None."""
+# At most this many faces are read from one door frame (a queue at the reader).
+MAX_FACES = 5
+
+
+def _features(image_bytes, limit=1):
+    """SFace feature vectors of the largest faces in the image, biggest first."""
     try:
         import cv2
         import numpy as np
         detector, recognizer = _models()
         if detector is None:
-            return None
+            return []
         image = cv2.imdecode(np.frombuffer(image_bytes, np.uint8), cv2.IMREAD_COLOR)
         if image is None:
-            return None
+            return []
         height, width = image.shape[:2]
         detector.setInputSize((width, height))
         _, faces = detector.detect(image)
@@ -114,14 +118,27 @@ def embed(image_bytes):
             detector.setInputSize((image.shape[1], image.shape[0]))
             _, faces = detector.detect(image)
         if faces is None or len(faces) == 0:
-            return None
-        largest = max(faces, key=lambda face: face[2] * face[3])  # widest-by-area box
-        aligned = recognizer.alignCrop(image, largest)
-        feature = recognizer.feature(aligned)
-        return [float(value) for value in feature.flatten()]
+            return []
+        biggest = sorted(faces, key=lambda face: face[2] * face[3], reverse=True)[:limit]  # by box area
+        return [[float(value) for value in recognizer.feature(recognizer.alignCrop(image, face)).flatten()]
+                for face in biggest]
     except Exception as error:  # noqa: BLE001
         logger.warning('Face embed failed: %s', type(error).__name__)
-        return None
+        return []
+
+
+def embed(image_bytes):
+    """The SFace feature vector of the largest detected face, as a list, or None."""
+    found = _features(image_bytes)
+    return found[0] if found else None
+
+
+def _cosine(first, second):
+    import numpy as np
+    first = np.asarray(first, dtype='float32')
+    second = np.asarray(second, dtype='float32')
+    denom = float(np.linalg.norm(first) * np.linalg.norm(second)) or 1.0
+    return float(np.dot(first, second) / denom)
 
 
 def compare(embedding, image_bytes):
@@ -133,8 +150,17 @@ def compare(embedding, image_bytes):
     other = embed(image_bytes)
     if other is None or not embedding:
         return None
-    import numpy as np
-    first = np.asarray(embedding, dtype='float32')
-    second = np.asarray(other, dtype='float32')
-    denom = float(np.linalg.norm(first) * np.linalg.norm(second)) or 1.0
-    return float(np.dot(first, second) / denom)
+    return _cosine(embedding, other)
+
+
+def best_match(embedding, image_bytes):
+    """The highest similarity between the stored face and any face in the frame.
+
+    A door frame may hold a queue: the person swiping can be behind someone
+    nearer the camera, so every face is tried, not only the largest. None when
+    the frame shows no face at all.
+    """
+    if not embedding:
+        return None
+    found = _features(image_bytes, limit=MAX_FACES)
+    return max(_cosine(embedding, other) for other in found) if found else None

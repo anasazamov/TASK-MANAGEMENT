@@ -48,7 +48,7 @@ class IngestUsesRestoredFrameTests(TestCase):
     def test_the_face_check_sees_the_true_shape(self):
         seen = []
         with patch('core.face.available', return_value=True), \
-                patch('core.face.compare', side_effect=lambda emb, data: seen.append(size(data)) or 0.9):
+                patch('core.face.best_match', side_effect=lambda emb, data: seen.append(size(data)) or 0.9):
             ingest_event({'major': 5, 'minor': 1, 'time': '2026-10-21 08:00:00', 'cardNo': '1000000001',
                           'employeeNoString': '', 'name': 'SINOV XODIM', 'doorNo': 1},
                          SimpleUploadedFile('capture.jpg', jpeg(704, 576), content_type='image/jpeg'))

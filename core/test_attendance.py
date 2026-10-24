@@ -272,7 +272,7 @@ class FaceCheckTests(TestCase):
     def picture(self):
         return SimpleUploadedFile('capture.jpg', b'captured-bytes', content_type='image/jpeg')
 
-    @patch('core.face.compare', return_value=0.9)
+    @patch('core.face.best_match', return_value=0.9)
     def test_high_confidence_marks_present_without_storing_photo(self, compare):
         with self.captureOnCommitCallbacks(execute=True):
             result = ingest_event(event('2026-10-21 08:00:00'), self.picture())
@@ -281,7 +281,7 @@ class FaceCheckTests(TestCase):
         self.assertFalse(bool(AccessEvent.objects.get(pk=result['event_id']).photo))
 
     @patch('core.attendance.send_review_alert')
-    @patch('core.face.compare', return_value=0.1)
+    @patch('core.face.best_match', return_value=0.1)
     def test_low_confidence_opens_review_and_keeps_photo(self, compare, alert):
         with self.captureOnCommitCallbacks(execute=True):
             result = ingest_event(event('2026-10-21 08:00:00'), self.picture())
@@ -294,7 +294,7 @@ class FaceCheckTests(TestCase):
     @patch('core.telegram.message')
     @patch('core.telegram.configured', return_value=True)
     def test_employee_is_told_when_the_day_goes_to_review(self, configured, message):
-        with patch('core.face.compare', return_value=None):
+        with patch('core.face.best_match', return_value=None):
             with self.captureOnCommitCallbacks(execute=True):
                 ingest_event(event('2026-10-21 08:00:00'), self.picture())
         to_employee = [call.args[1] for call in message.call_args_list if call.args[0] == self.employee]
@@ -304,7 +304,7 @@ class FaceCheckTests(TestCase):
         self.assertIn('tekshiruviga yuborildi', to_employee[0])
 
     @patch('core.attendance.send_review_alert')
-    @patch('core.face.compare', return_value=None)
+    @patch('core.face.best_match', return_value=None)
     def test_card_without_a_face_in_frame_goes_to_review(self, compare, alert):
         with self.captureOnCommitCallbacks(execute=True):
             result = ingest_event(event('2026-10-21 08:00:00'), self.picture())
@@ -314,7 +314,7 @@ class FaceCheckTests(TestCase):
         self.assertTrue(bool(AccessEvent.objects.get(pk=result['event_id']).photo))
         alert.assert_called_once()
 
-    @patch('core.face.compare')
+    @patch('core.face.best_match')
     def test_face_subsystem_down_falls_back_to_card_only(self, compare):
         with patch('core.face.available', return_value=False):
             with self.captureOnCommitCallbacks(execute=True):
@@ -327,12 +327,12 @@ class FaceCheckTests(TestCase):
     @patch('core.telegram.configured', return_value=True)
     def test_review_alert_reads_well_when_no_face_was_found(self, configured, message):
         from core.attendance import send_review_alert
-        with patch('core.face.compare', return_value=None):
+        with patch('core.face.best_match', return_value=None):
             ingest_event(event('2026-10-21 08:00:00'), self.picture())
         send_review_alert(FaceReview.objects.get().pk)
         self.assertIn('yuz topilmadi', message.call_args.args[1])
 
-    @patch('core.face.compare')
+    @patch('core.face.best_match')
     def test_no_enrollment_falls_back_to_card_only(self, compare):
         FaceEnrollment.objects.all().delete()
         with self.captureOnCommitCallbacks(execute=True):
@@ -343,7 +343,7 @@ class FaceCheckTests(TestCase):
 
     @patch('core.attendance.send_not_counted')
     def test_reject_marks_rejected_and_warns_the_employee(self, warn):
-        with patch('core.face.compare', return_value=0.1):
+        with patch('core.face.best_match', return_value=0.1):
             with self.captureOnCommitCallbacks(execute=True):
                 ingest_event(event('2026-10-21 08:00:00'), self.picture())
         review = FaceReview.objects.get()
@@ -358,7 +358,7 @@ class FaceCheckTests(TestCase):
         self.assertEqual(warn.call_args.args[2], 'Kartani boshqa odam ishlatdi')
 
     def test_face_tabs_and_review_badge_live_under_attendance(self):
-        with patch('core.face.compare', return_value=0.1):
+        with patch('core.face.best_match', return_value=0.1):
             ingest_event(event('2026-10-21 08:00:00'), self.picture())
         self.client.force_login(self.secretary)
         page = self.client.get('/employees/attendance/?date=2026-10-21')
@@ -370,14 +370,14 @@ class FaceCheckTests(TestCase):
         self.assertNotContains(stats, 'href="/employees/faces/"')  # not a top-level tab
 
     def reject_first_entry(self):
-        with patch('core.face.compare', return_value=None):
+        with patch('core.face.best_match', return_value=None):
             ingest_event(event('2026-10-21 11:09:25'), self.picture())
         resolve_review(self.secretary, FaceReview.objects.get().pk, approve=False, reason='Yuz ko‘rsatilmadi')
 
     @patch('core.attendance.send_reverified')
     def test_clear_face_after_a_rejection_restores_the_day_automatically(self, reverified):
         self.reject_first_entry()
-        with patch('core.face.compare', return_value=0.63):
+        with patch('core.face.best_match', return_value=0.63):
             with self.captureOnCommitCallbacks(execute=True):
                 ingest_event(event('2026-10-21 11:38:56'), self.picture())
         self.assertEqual(Attendance.objects.get(user=self.employee).status, 'present')
@@ -392,7 +392,7 @@ class FaceCheckTests(TestCase):
     def test_unclear_face_after_a_rejection_opens_a_new_review(self, alert):
         self.reject_first_entry()
         alert.reset_mock()
-        with patch('core.face.compare', return_value=0.1):
+        with patch('core.face.best_match', return_value=0.1):
             with self.captureOnCommitCallbacks(execute=True):
                 ingest_event(event('2026-10-21 11:38:56'), self.picture())
         self.assertEqual(Attendance.objects.get(user=self.employee).status, 'review')
@@ -400,7 +400,7 @@ class FaceCheckTests(TestCase):
         alert.assert_called_once()  # a second review that day still reaches the secretary
 
     def open_review_on_first_entry(self):
-        with patch('core.face.compare', return_value=0.1):
+        with patch('core.face.best_match', return_value=0.1):
             ingest_event(event('2026-10-21 08:00:00'), self.picture())
 
     def arrival(self):
@@ -410,7 +410,7 @@ class FaceCheckTests(TestCase):
     @patch('core.attendance.send_reverified')
     def test_clear_face_while_in_review_counts_but_leaves_the_earlier_review_open(self, reverified):
         self.open_review_on_first_entry()
-        with patch('core.face.compare', return_value=0.7):
+        with patch('core.face.best_match', return_value=0.7):
             with self.captureOnCommitCallbacks(execute=True):
                 ingest_event(event('2026-10-21 09:00:00'), self.picture())
         self.assertEqual(self.arrival(), ('present', '09:00'))  # arrived at the confirmed entry
@@ -425,7 +425,7 @@ class FaceCheckTests(TestCase):
 
     def test_approving_the_earlier_review_moves_the_arrival_back(self):
         self.open_review_on_first_entry()
-        with patch('core.face.compare', return_value=0.7):
+        with patch('core.face.best_match', return_value=0.7):
             ingest_event(event('2026-10-21 09:00:00'), self.picture())
         resolve_review(self.secretary, FaceReview.objects.get(event__happened_at__hour=8).pk, approve=True)
         self.assertEqual(self.arrival(), ('present', '08:00'))
@@ -433,7 +433,7 @@ class FaceCheckTests(TestCase):
     @patch('core.attendance.send_not_counted')
     def test_rejecting_the_earlier_review_keeps_a_day_already_confirmed(self, warn):
         self.open_review_on_first_entry()
-        with patch('core.face.compare', return_value=0.7):
+        with patch('core.face.best_match', return_value=0.7):
             ingest_event(event('2026-10-21 09:00:00'), self.picture())
         with self.captureOnCommitCallbacks(execute=True):
             resolve_review(self.secretary, FaceReview.objects.get(event__happened_at__hour=8).pk,
@@ -445,7 +445,7 @@ class FaceCheckTests(TestCase):
     def test_every_unclear_entry_gets_its_own_review(self, alert):
         self.open_review_on_first_entry()
         alert.reset_mock()
-        with patch('core.face.compare', return_value=0.1):
+        with patch('core.face.best_match', return_value=0.1):
             with self.captureOnCommitCallbacks(execute=True):
                 result = ingest_event(event('2026-10-21 09:00:00'), self.picture())
         self.assertEqual(FaceReview.objects.filter(state='pending').count(), 2)
@@ -457,16 +457,16 @@ class FaceCheckTests(TestCase):
         self.assertEqual(self.arrival(), ('present', '08:00'))
 
     def test_later_entries_on_a_good_day_are_not_rechecked(self):
-        with patch('core.face.compare', return_value=0.9):
+        with patch('core.face.best_match', return_value=0.9):
             ingest_event(event('2026-10-21 08:00:00'), self.picture())
-        with patch('core.face.compare') as compare:
+        with patch('core.face.best_match') as compare:
             ingest_event(event('2026-10-21 12:00:00'), self.picture())
         compare.assert_not_called()
         self.assertEqual(Attendance.objects.get(user=self.employee).entry_count, 2)
 
     def test_reject_without_a_reason_is_refused(self):
         from django.core.exceptions import ValidationError
-        with patch('core.face.compare', return_value=0.1):
+        with patch('core.face.best_match', return_value=0.1):
             ingest_event(event('2026-10-21 08:00:00'), self.picture())
         review = FaceReview.objects.get()
         with self.assertRaises(ValidationError):
@@ -475,7 +475,7 @@ class FaceCheckTests(TestCase):
         self.assertEqual(review.state, 'pending')
 
     def test_rejected_day_is_shown_as_rejected_with_its_reason(self):
-        with patch('core.face.compare', return_value=0.1):
+        with patch('core.face.best_match', return_value=0.1):
             ingest_event(event('2026-10-21 08:00:00'), self.picture())
         resolve_review(self.secretary, FaceReview.objects.get().pk, approve=False, reason='Yuz mos emas')
         self.client.force_login(self.secretary)
@@ -490,7 +490,7 @@ class FaceCheckTests(TestCase):
         self.assertEqual(export.status_code, 200)
 
     def test_approve_marks_present(self):
-        with patch('core.face.compare', return_value=0.1):
+        with patch('core.face.best_match', return_value=0.1):
             with self.captureOnCommitCallbacks(execute=True):
                 ingest_event(event('2026-10-21 08:00:00'), self.picture())
         review = FaceReview.objects.get()
@@ -611,12 +611,14 @@ class ExcusedAlertTests(TestCase):
         self.missing = User.objects.create_user('yoq', full_name='Kelmadi Yoq', role='employee', telegram_id=1003)
         AccessCard.objects.create(user=self.sick, card_no='111')
         AccessCard.objects.create(user=self.missing, card_no='222')
-        AttendanceExcuse.objects.create(user=self.sick, date=timezone.localdate(), kind='sick', note='Shamollagan')
+        self.noon = workday_at(11, 30)
+        AttendanceExcuse.objects.create(user=self.sick, date=self.noon.date(), kind='sick', note='Shamollagan')
 
     @patch('core.telegram.configured', return_value=True)
     @patch('core.telegram.message', return_value=True)
     def test_excused_employee_gets_no_late_warning_and_is_listed_apart(self, message, configured):
-        call_command('attendance_alerts')
+        with patch('django.utils.timezone.localtime', return_value=timezone.localtime(self.noon)):
+            call_command('attendance_alerts', stdout=io.StringIO())
         recipients = [call.args[0] for call in message.call_args_list]
         self.assertNotIn(self.sick, recipients)
         self.assertIn(self.missing, recipients)
@@ -646,7 +648,7 @@ class CheckedInReceiptTests(TestCase):
 
     @patch('core.telegram.configured', return_value=True)
     @patch('core.telegram.message', return_value=True)
-    @patch('core.face.compare', return_value=0.9)
+    @patch('core.face.best_match', return_value=0.9)
     def test_recognised_arrival_sends_one_receipt_with_lateness(self, compare, message, configured):
         with self.captureOnCommitCallbacks(execute=True):
             ingest_event(event('2026-10-21 09:25:00'), self.picture())
@@ -661,7 +663,7 @@ class CheckedInReceiptTests(TestCase):
 
     @patch('core.telegram.configured', return_value=True)
     @patch('core.telegram.message', return_value=True)
-    @patch('core.face.compare', return_value=0.1)
+    @patch('core.face.best_match', return_value=0.1)
     def test_secretary_approval_sends_the_receipt(self, compare, message, configured):
         with self.captureOnCommitCallbacks(execute=True):
             ingest_event(event('2026-10-21 08:40:00'), self.picture())
@@ -670,3 +672,45 @@ class CheckedInReceiptTests(TestCase):
         with self.captureOnCommitCallbacks(execute=True):
             resolve_review(secretary, FaceReview.objects.get().pk, True)
         self.assertTrue(any('qabul qilindi' in t for t in self.employee_messages(message)))
+
+
+@override_settings(ATTENDANCE_DAY_START_HOUR=7, FACE_MATCH_THRESHOLD=0.35, TELEGRAM_BOT_TOKEN='',
+                   MEDIA_ROOT=tempfile.mkdtemp())
+class SeveralFramesTests(TestCase):
+    """The agent sends frames from around the swipe; the clearest face decides."""
+
+    def setUp(self):
+        self.employee = User.objects.create_user('anas', full_name='SINOV XODIM', role='employee')
+        AccessCard.objects.create(user=self.employee, card_no='1000000001')
+        FaceEnrollment.objects.create(user=self.employee, embedding=[0.1] * 512,
+                                      photo=SimpleUploadedFile('enrolled.jpg', b'enrolled-bytes'))
+        available = patch('core.face.available', return_value=True)
+        available.start()
+        self.addCleanup(available.stop)
+
+    def frames(self, *names):
+        return [SimpleUploadedFile(f'{name}.jpg', name.encode(), content_type='image/jpeg') for name in names]
+
+    def test_one_clear_frame_among_empty_ones_counts(self):
+        scores = {b'corridor': None, b'face': 0.7, b'blurred': 0.2}
+        with patch('core.face.best_match', side_effect=lambda emb, data: scores[data]):
+            ingest_event(event('2026-10-21 08:00:00'), self.frames('corridor', 'face', 'blurred'))
+        self.assertEqual(Attendance.objects.get().status, 'present')
+        self.assertEqual(AccessEvent.objects.get().face_confidence, 0.7)
+        self.assertFalse(FaceReview.objects.exists())
+
+    def test_no_face_in_any_frame_keeps_the_middle_one_for_review(self):
+        with patch('core.face.best_match', return_value=None):
+            ingest_event(event('2026-10-21 08:00:00'), self.frames('before', 'swipe', 'after'))
+        access = AccessEvent.objects.get()
+        self.assertEqual(access.photo.read(), b'swipe')
+        self.assertEqual(FaceReview.objects.get().confidence, None)
+
+    def test_the_webhook_accepts_several_frames(self):
+        from .attendance import parse_request
+        from django.test import RequestFactory
+        request = RequestFactory().post('/hook/', {'event': json.dumps(event('2026-10-21 08:00:00')),
+                                                   'picture': self.frames('one', 'two')})
+        parsed, pictures = parse_request(request)
+        self.assertEqual(parsed['cardNo'], '1000000001')
+        self.assertEqual(len(pictures), 2)

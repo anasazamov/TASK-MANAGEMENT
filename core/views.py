@@ -360,16 +360,18 @@ UZ_MONTHS = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
 UZ_WEEKDAYS = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya']
 
 
-def day_chips(day, today, count=14):
+def day_chips(day, today, count=14, hide_days=False):
     """Newest-first strip of days around the selected one, never past today.
 
     It follows the selection: picking a date far back in the date field brings
     that week into the strip instead of leaving it stuck on the last fortnight.
     """
     end = min(day + timedelta(days=count // 2), today)
-    return [{'date': end - timedelta(days=offset), 'selected': end - timedelta(days=offset) == day,
-             'weekday': UZ_WEEKDAYS[(end - timedelta(days=offset)).weekday()],
-             'today': end - timedelta(days=offset) == today} for offset in range(count)]
+    days = [end - timedelta(days=offset) for offset in range(count)]
+    if hide_days:
+        days = [d for d in days if not attendance_service.is_hidden_day(d)]
+    return [{'date': d, 'selected': d == day, 'weekday': UZ_WEEKDAYS[d.weekday()], 'today': d == today}
+            for d in days]
 
 
 def pending_reviews_for(user):
@@ -392,6 +394,9 @@ def attendance_daily(request):
         day = today
     if day > today:
         day = today
+    hide = attendance_service.hide_from(request.user)
+    while hide and attendance_service.is_hidden_day(day):
+        day -= timedelta(days=1)          # step back to the nearest day this user may see
     records = {a.user_id: a for a in Attendance.objects.filter(user__in=people, date=day)}
     # The latest decided review per attendance: who decided and why, for audit.
     decisions = {review.attendance_id: review for review in FaceReview.objects.filter(
@@ -428,7 +433,7 @@ def attendance_daily(request):
         'pending_reviews': pending_reviews_for(request.user),
         'rows': rows, 'day': day, 'is_today': day == today, 'tally': tally, 'absent': tally['absent'],
         'excuse_kinds': AttendanceExcuse.Kind.choices, 'late_hour': settings.ATTENDANCE_LATE_HOUR,
-        'chips': day_chips(day, today), 'day_label': f'{day.day} {UZ_MONTHS[day.month - 1].lower()} {day.year}',
+        'chips': day_chips(day, today, hide_days=hide), 'day_label': f'{day.day} {UZ_MONTHS[day.month - 1].lower()} {day.year}',
         'weekday_label': ['Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba', 'Yakshanba'][day.weekday()],
         'day_start_hour': settings.ATTENDANCE_DAY_START_HOUR})
 
@@ -487,6 +492,7 @@ EXCUSE_KIND_HINTS = {
 
 def my_month_rows(user, first, today, since):
     """One row per day of the month up to today: what the attendance says about it."""
+    hidden = attendance_service.hide_from(user)
     last = min((first.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1), today)
     records = {a.date: a for a in Attendance.objects.filter(user=user, date__range=(first, last))}
     excuses = {e.date: e for e in AttendanceExcuse.objects.filter(user=user, date__range=(first, last))}
@@ -498,6 +504,8 @@ def my_month_rows(user, first, today, since):
     rows, day = [], last
     while day >= stop:
         attendance, excuse = records.get(day), excuses.get(day)
+        if hidden and attendance_service.is_hidden_day(day):
+            attendance = None                 # recorded, but only a superuser sees it
         late = attendance_service.late_minutes(attendance)
         if attendance and attendance.status == Attendance.Status.REVIEW:
             state = 'review'
@@ -509,7 +517,7 @@ def my_month_rows(user, first, today, since):
             state = 'excused'
         elif day == today and timezone.localtime().hour < settings.ATTENDANCE_ABSENT_HOUR:
             state = 'not_yet'
-        elif day.weekday() in settings.ATTENDANCE_WEEKEND_DAYS:
+        elif day.weekday() in settings.ATTENDANCE_WEEKEND_DAYS or (hidden and attendance_service.is_hidden_day(day)):
             state = 'weekend'
         else:
             state = 'absent'
@@ -644,7 +652,9 @@ def access_events(request):
 
     start = parse(request.GET.get('from'), default_from)
     end = parse(request.GET.get('to'), now)
-    events = AccessEvent.objects.filter(happened_at__gte=start, happened_at__lte=end).select_related('user', 'user__department')
+    events = attendance_service.visible_events(
+        AccessEvent.objects.filter(happened_at__gte=start, happened_at__lte=end), request.user,
+    ).select_related('user', 'user__department')
     # Everyone in scope, plus unmatched events for those who see the whole org.
     if request.user.is_chair or request.user.can_oversee or request.user.is_hr:
         events = events.filter(Q(user__in=people) | Q(user__isnull=True))

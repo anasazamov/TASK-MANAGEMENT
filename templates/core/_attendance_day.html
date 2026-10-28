@@ -24,8 +24,8 @@
     <td class="name">{{ row.user.full_name }}{% if row.user.department %}<small class="muted"> · {{ row.user.department.name }}</small>{% endif %}</td>
     {% if row.attendance %}
       <td>{{ row.attendance.entry_count }}</td>
-      <td>{{ row.attendance.first_entry_at|date:'H:i' }}</td>
-      <td>{{ row.attendance.last_entry_at|date:'H:i' }}</td>
+      <td>{% if hide_times %}—{% else %}{{ row.attendance.first_entry_at|date:'H:i' }}{% endif %}</td>
+      <td>{% if hide_times %}—{% else %}{{ row.attendance.last_entry_at|date:'H:i' }}{% endif %}</td>
       <td>{% if row.late %}<span class="late-label">+{{ row.late_label }}</span>{% if row.excuse.kind == 'late' %}<small class="muted" style="display:block">uzrli</small>{% endif %}{% else %}—{% endif %}</td>
       <td style="white-space:normal;max-width:260px">
         {% if row.attendance.status == 'review' %}<span class="status-badge submitted">Tekshiruvda</span>

@@ -360,7 +360,7 @@ UZ_MONTHS = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
 UZ_WEEKDAYS = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya']
 
 
-def day_chips(day, today, count=14, hide_days=False):
+def day_chips(day, today, count=14):
     """Newest-first strip of days around the selected one, never past today.
 
     It follows the selection: picking a date far back in the date field brings
@@ -368,8 +368,6 @@ def day_chips(day, today, count=14, hide_days=False):
     """
     end = min(day + timedelta(days=count // 2), today)
     days = [end - timedelta(days=offset) for offset in range(count)]
-    if hide_days:
-        days = [d for d in days if not attendance_service.is_hidden_day(d)]
     return [{'date': d, 'selected': d == day, 'weekday': UZ_WEEKDAYS[d.weekday()], 'today': d == today}
             for d in days]
 
@@ -394,9 +392,8 @@ def attendance_daily(request):
         day = today
     if day > today:
         day = today
-    hide = attendance_service.hide_from(request.user)
-    while hide and attendance_service.is_hidden_day(day):
-        day -= timedelta(days=1)          # step back to the nearest day this user may see
+    # On a hidden day (weekend) who came is shown, when they came is not.
+    hide_times = attendance_service.hide_from(request.user) and attendance_service.is_hidden_day(day)
     records = {a.user_id: a for a in Attendance.objects.filter(user__in=people, date=day)}
     # The latest decided review per attendance: who decided and why, for audit.
     decisions = {review.attendance_id: review for review in FaceReview.objects.filter(
@@ -407,14 +404,15 @@ def attendance_daily(request):
     rows = []
     for person in people:
         attendance = records.get(person.pk)
-        late = attendance_service.late_minutes(attendance)
+        late = None if hide_times else attendance_service.late_minutes(attendance)
         rows.append({'user': person, 'attendance': attendance, 'excuse': excuses.get(person.pk),
                      'review': decisions.get(attendance.pk) if attendance else None,
                      'late': late, 'late_label': attendance_service.duration_label(late) if late else ''})
     if request.GET.get('format') == 'xlsx':
         marked = request.GET.get('marked') == '1'
         name = f"davomat-{day:%Y%m%d}{'-belgilangan' if marked else ''}.xlsx"
-        response = HttpResponse(reports.attendance_workbook(rows, day, request.user.short_name, marked=marked),
+        response = HttpResponse(reports.attendance_workbook(rows, day, request.user.short_name, marked=marked,
+                                                            hide_times=hide_times),
                                 content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         response['Content-Disposition'] = f'attachment; filename="{name}"'
         return response
@@ -433,7 +431,7 @@ def attendance_daily(request):
         'pending_reviews': pending_reviews_for(request.user),
         'rows': rows, 'day': day, 'is_today': day == today, 'tally': tally, 'absent': tally['absent'],
         'excuse_kinds': AttendanceExcuse.Kind.choices, 'late_hour': settings.ATTENDANCE_LATE_HOUR,
-        'chips': day_chips(day, today, hide_days=hide), 'day_label': f'{day.day} {UZ_MONTHS[day.month - 1].lower()} {day.year}',
+        'chips': day_chips(day, today), 'hide_times': hide_times, 'day_label': f'{day.day} {UZ_MONTHS[day.month - 1].lower()} {day.year}',
         'weekday_label': ['Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba', 'Yakshanba'][day.weekday()],
         'day_start_hour': settings.ATTENDANCE_DAY_START_HOUR})
 
@@ -504,9 +502,8 @@ def my_month_rows(user, first, today, since):
     rows, day = [], last
     while day >= stop:
         attendance, excuse = records.get(day), excuses.get(day)
-        if hidden and attendance_service.is_hidden_day(day):
-            attendance = None                 # recorded, but only a superuser sees it
-        late = attendance_service.late_minutes(attendance)
+        hide_times = hidden and attendance_service.is_hidden_day(day)
+        late = None if hide_times else attendance_service.late_minutes(attendance)
         if attendance and attendance.status == Attendance.Status.REVIEW:
             state = 'review'
         elif attendance and attendance.status == Attendance.Status.REJECTED:
@@ -517,13 +514,13 @@ def my_month_rows(user, first, today, since):
             state = 'excused'
         elif day == today and timezone.localtime().hour < settings.ATTENDANCE_ABSENT_HOUR:
             state = 'not_yet'
-        elif day.weekday() in settings.ATTENDANCE_WEEKEND_DAYS or (hidden and attendance_service.is_hidden_day(day)):
+        elif day.weekday() in settings.ATTENDANCE_WEEKEND_DAYS:
             state = 'weekend'
         else:
             state = 'absent'
         request_for = next((r for r in pending if r.start <= day <= r.end), None)
         rows.append({'date': day, 'weekday': UZ_WEEKDAYS[day.weekday()], 'attendance': attendance,
-                     'excuse': excuse, 'state': state, 'pending': request_for,
+                     'excuse': excuse, 'state': state, 'pending': request_for, 'hide_times': hide_times,
                      'late_label': attendance_service.duration_label(late) if late else '',
                      'can_request': (state in REQUESTABLE_STATES and not excuse and not request_for
                                      and day >= oldest_request),

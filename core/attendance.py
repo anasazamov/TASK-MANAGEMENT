@@ -40,17 +40,17 @@ def deciders():
 
 
 def is_hidden_day(day):
-    """A day whose attendance is kept but shown only to superusers (ATTENDANCE_HIDDEN_DAYS)."""
+    """A day whose entry times are shown only to superusers (ATTENDANCE_HIDDEN_DAYS)."""
     return day.weekday() in settings.ATTENDANCE_HIDDEN_DAYS
 
 
 def hide_from(user):
-    """True when hidden days must be left out of what this user sees."""
+    """True when entry times on hidden days must be kept from this user."""
     return not user.is_superuser
 
 
 def visible_events(events, user):
-    """Leave out door events on hidden days, unless the viewer is a superuser."""
+    """Leave out door events on hidden days — each one is a time — unless a superuser asks."""
     if not hide_from(user) or not settings.ATTENDANCE_HIDDEN_DAYS:
         return events
     # Django counts week days Sunday=1 … Saturday=7, in the current (Tashkent) time zone.
@@ -372,8 +372,8 @@ def ingest_event(event, picture=None):
         # The door log keeps the entry; there is no attendance day, face check or alert.
         result['reason'] = 'exempt'
     elif card and is_hidden_day(timezone.localtime(happened_at).date()):
-        # Kept quietly: the day is recorded for superusers, with no face check (a
-        # review would show it) and no message to anyone.
+        # Kept quietly: the day is recorded, its times only for superusers, with no
+        # face check (a review would show the time) and no message to anyone.
         fold = _fold_into_day(card.user, access)
         result.update(fold, reason='hidden_day')
         if fold.get('attendance_id'):

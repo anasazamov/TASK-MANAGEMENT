@@ -1,14 +1,17 @@
-<div data-att-block data-date="{{ day|date:'Y-m-d' }}" data-today="{{ is_today|yesno:'1,0' }}">
+{% load ui %}<div data-att-block data-date="{{ day|date:'Y-m-d' }}" data-today="{{ is_today|yesno:'1,0' }}">
 <div class="list-toolbar att-chips" aria-label="Kunlar">
   {% for chip in chips %}<a class="button mini {% if chip.selected %}primary{% else %}secondary{% endif %}" href="?date={{ chip.date|date:'Y-m-d' }}" data-att-day="{{ chip.date|date:'Y-m-d' }}"{% if chip.selected %} aria-current="date"{% endif %}>{{ chip.date|date:'d.m' }} <small>{% if chip.today %}bugun{% else %}{{ chip.weekday }}{% endif %}</small></a>{% endfor %}
 </div>
 <div class="section-heading">
   <h2>{{ day_label }} <span class="count-pill">{{ weekday_label }}</span></h2>
-  <div class="list-toolbar" style="margin:0">
+  {% if not day_off %}<div class="list-toolbar" style="margin:0">
     <a class="button mini secondary" href="?date={{ day|date:'Y-m-d' }}&amp;format=xlsx">Excel yuklab olish</a>
     <a class="button mini primary" href="?date={{ day|date:'Y-m-d' }}&amp;format=xlsx&amp;marked=1" title="Kelmaganlar qizil, kechikkanlar sariq, uzrlilar ko‘k">Belgilangan Excel</a>
-  </div>
+  </div>{% endif %}
 </div>
+{% if day_off %}
+<div class="empty-state">{% icon 'sun' %}<h2>Dam olish kuni</h2><p>Bu kun uchun davomat ko‘rsatilmaydi. Eshik orqali kirishlar «Eshik ochilishlari» bo‘limida ko‘rinadi.</p></div>
+{% else %}
 <div class="att-summary">
   <span class="status-badge accepted">Keldi: <strong>{{ tally.present }}</strong></span>
   <span class="status-badge overdue">Kechikdi: <strong>{{ tally.late }}</strong></span>
@@ -24,8 +27,8 @@
     <td class="name">{{ row.user.full_name }}{% if row.user.department %}<small class="muted"> · {{ row.user.department.name }}</small>{% endif %}</td>
     {% if row.attendance %}
       <td>{{ row.attendance.entry_count }}</td>
-      <td>{% if hide_times %}—{% else %}{{ row.attendance.first_entry_at|date:'H:i' }}{% endif %}</td>
-      <td>{% if hide_times %}—{% else %}{{ row.attendance.last_entry_at|date:'H:i' }}{% endif %}</td>
+      <td>{{ row.attendance.first_entry_at|date:'H:i' }}</td>
+      <td>{{ row.attendance.last_entry_at|date:'H:i' }}</td>
       <td>{% if row.late %}<span class="late-label">+{{ row.late_label }}</span>{% if row.excuse.kind == 'late' %}<small class="muted" style="display:block">uzrli</small>{% endif %}{% else %}—{% endif %}</td>
       <td style="white-space:normal;max-width:260px">
         {% if row.attendance.status == 'review' %}<span class="status-badge submitted">Tekshiruvda</span>
@@ -61,5 +64,6 @@
     </td>
   </tr>{% empty %}<tr><td colspan="8" class="empty">Ko‘rinadigan xodim yo‘q.</td></tr>{% endfor %}</tbody>
 </table></div>
+{% endif %}
 <p class="help-text stats-note">Yo‘qlama Toshkent vaqti bilan {{ day_start_hour }}:00 dan boshlab hisoblanadi; {{ late_hour }}:00 dan keyin kelganlar «Kechikdi» deb belgilanadi. Uzrli sababi kiritilgan xodimga kechikish xabari yuborilmaydi.{% if is_today %} Bugungi ro‘yxat o‘zi yangilanib turadi.{% endif %}</p>
 </div>

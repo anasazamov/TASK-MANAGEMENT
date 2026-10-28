@@ -46,8 +46,8 @@
     <td>{{ row.date|date:'d.m.Y' }} <small class="muted">{{ row.weekday }}</small></td>
     {% if row.attendance %}
       <td>{{ row.attendance.entry_count }}</td>
-      <td>{% if row.hide_times %}—{% else %}{{ row.attendance.first_entry_at|date:'H:i' }}{% endif %}</td>
-      <td>{% if row.hide_times %}—{% else %}{{ row.attendance.last_entry_at|date:'H:i' }}{% endif %}</td>
+      <td>{{ row.attendance.first_entry_at|date:'H:i' }}</td>
+      <td>{{ row.attendance.last_entry_at|date:'H:i' }}</td>
       <td>{% if row.late_label %}<span class="late-label">+{{ row.late_label }}</span>{% else %}—{% endif %}</td>
     {% else %}<td>—</td><td>—</td><td>—</td><td>—</td>{% endif %}
     <td>{% include 'core/_my_att_status.html' %}</td>
@@ -67,7 +67,7 @@
       {% include 'core/_my_att_status.html' %}
     </div>
     {% if row.attendance %}<div class="my-att-times">
-      {% if not row.hide_times %}<span>{% icon 'clock' %} {{ row.attendance.first_entry_at|date:'H:i' }}{% if row.attendance.entry_count > 1 %} – {{ row.attendance.last_entry_at|date:'H:i' }}{% endif %}</span>{% endif %}
+      <span>{% icon 'clock' %} {{ row.attendance.first_entry_at|date:'H:i' }}{% if row.attendance.entry_count > 1 %} – {{ row.attendance.last_entry_at|date:'H:i' }}{% endif %}</span>
       <span class="muted">{{ row.attendance.entry_count }} ta kirish</span>
       {% if row.late_label %}<span class="late-label">+{{ row.late_label }}</span>{% endif %}
     </div>{% endif %}

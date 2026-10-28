@@ -194,10 +194,10 @@ FACE_MATCH_THRESHOLD=0.35
 - **Excel**: «Excel yuklab olish» — oddiy jadval; «Belgilangan Excel» — qatorlar holat bo'yicha
   bo'yalgan (kelmadi — qizil, kechikdi — sariq, uzrli — ko'k, rad etildi, tekshiruvda) va
   ostida sonlari bilan legenda.
-- **Vaqti yashirin kunlar** (`ATTENDANCE_HIDDEN_DAYS`, standart `5,6` — shanba va yakshanba): kunlik
-  davomat, Excel va «Mening davomatim»da kim kelgani va kirishlar soni ko'rinadi, lekin birinchi/oxirgi
-  kirish vaqti va kechikish «—»; eshik ochilishlarida esa bu kunlar ham to'liq ko'rinadi; yuz tekshiruvi
-  va Telegram xabarlari yo'q. Kunlik vaqtlarni superuser admin panelda (Kunlik davomat) ko'radi.
+- **Davomati yashirin kunlar** (`ATTENDANCE_HIDDEN_DAYS`, standart `5,6` — shanba va yakshanba):
+  kirishlar yoziladi va «Eshik ochilishlari»da to'liq ko'rinadi; kunlik davomatda bu kun tanlansa
+  «Dam olish kuni» chiqadi (jadval va Excel yo'q), «Mening davomatim»da ham dam olish kuni; yuz
+  tekshiruvi va Telegram xabarlari yo'q. Davomatni superuser admin panelda (Kunlik davomat) ko'radi.
 - **Davomatdan ozod rollar** (`ATTENDANCE_EXEMPT_ROLES`, standart `chair`): kirishlari faqat eshik
   jurnaliga yoziladi; kunlik davomat, Excel, kelish/kechikish xabarlari va 11:00 ro'yxatida yo'q,
   menyuda «Mening davomatim» ko'rinmaydi.

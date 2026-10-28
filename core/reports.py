@@ -130,7 +130,7 @@ def attendance_state(row):
     return 'late' if row.get('late') else 'present'
 
 
-def attendance_workbook(rows, day, prepared_by, marked=False, hide_times=False):
+def attendance_workbook(rows, day, prepared_by, marked=False):
     """Daily attendance (one row per employee) as an .xlsx, like the stats sheet.
 
     `marked` colours each row by its state — absentees red — and adds a legend
@@ -163,11 +163,10 @@ def attendance_workbook(rows, day, prepared_by, marked=False, hide_times=False):
         attendance = row['attendance']
         state = attendance_state(row)
         counts[state] = counts.get(state, 0) + 1
-        timed = attendance and not hide_times      # weekend times stay with superusers
         values = [number, row['user'].full_name, str(row['user'].department or '—'),
                   attendance.entry_count if attendance else 0,
-                  timezone.localtime(attendance.first_entry_at).strftime('%H:%M') if timed and attendance.first_entry_at else '—',
-                  timezone.localtime(attendance.last_entry_at).strftime('%H:%M') if timed and attendance.last_entry_at else '—',
+                  timezone.localtime(attendance.first_entry_at).strftime('%H:%M') if attendance and attendance.first_entry_at else '—',
+                  timezone.localtime(attendance.last_entry_at).strftime('%H:%M') if attendance and attendance.last_entry_at else '—',
                   f"+{row['late_label']}" if row.get('late') else '—']
         excuse = row.get('excuse')
         if not attendance:

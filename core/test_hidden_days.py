@@ -45,37 +45,34 @@ class WeekendTimesHiddenTests(TestCase):
         message.assert_not_called()
         self.assertFalse(AttendanceAlert.objects.exists())
 
-    def test_secretary_sees_who_came_on_saturday_but_not_when(self):
+    def test_secretary_sees_saturday_as_a_day_off_and_the_door_log_in_full(self):
         ingest_event(swipe(f'{SATURDAY} 09:47:00'))
         self.client.force_login(self.secretary)
         page = self.client.get(reverse('attendance_daily') + f'?date={SATURDAY}')
         self.assertEqual(str(page.context['day']), SATURDAY)
-        self.assertIn(SATURDAY, [str(chip['date']) for chip in page.context['chips']])
-        row = next(row for row in page.context['rows'] if row['user'] == self.employee)
-        self.assertIsNotNone(row['attendance'])
-        self.assertIsNone(row['late'])                       # no lateness on a hidden day
-        self.assertContains(page, 'Keldi')
-        self.assertNotContains(page, '09:47')
-        # The door log is shown in full, weekend included.
+        self.assertIn(SATURDAY, [str(chip['date']) for chip in page.context['chips']])   # still offered
+        self.assertEqual(page.context['rows'], [])
+        self.assertContains(page, 'Dam olish kuni')
+        self.assertNotContains(page, 'Sinov Xodim')
+        self.assertNotContains(page, 'format=xlsx')
         events = self.client.get(reverse('access_events') + f'?from={SATURDAY}T00:00&to={SATURDAY}T23:59')
         self.assertEqual(len(events.context['events']), 1)
 
-    def test_export_leaves_the_times_out(self):
-        from openpyxl import load_workbook
+    def test_no_export_for_a_day_off(self):
         ingest_event(swipe(f'{SATURDAY} 09:47:00'))
         self.client.force_login(self.secretary)
         response = self.client.get(reverse('attendance_daily'), {'date': SATURDAY, 'format': 'xlsx'})
-        sheet = load_workbook(io.BytesIO(response.content)).active
-        row = next(r for r in range(5, sheet.max_row + 1) if sheet.cell(row=r, column=2).value == 'Sinov Xodim')
-        self.assertEqual([sheet.cell(row=row, column=c).value for c in (5, 6, 7, 8)], ['—', '—', '—', 'Keldi'])
+        self.assertNotIn('attachment', response.get('Content-Disposition', ''))
 
-    def test_employee_month_shows_the_day_without_times(self):
+    def test_employee_month_shows_a_day_off(self):
         from .views import my_month_rows
         ingest_event(swipe(f'{SATURDAY} 09:47:00'))
         rows = {row['date']: row for row in my_month_rows(self.employee, date(2026, 10, 1), date(2026, 10, 25),
                                                           date(2026, 10, 20))}
         saturday = rows[date(2026, 10, 24)]
-        self.assertEqual((saturday['state'], saturday['hide_times']), ('present', True))
+        self.assertEqual(saturday['state'], 'weekend')
+        self.assertIsNone(saturday['attendance'])
+        self.assertTrue(Attendance.objects.filter(user=self.employee, date=SATURDAY).exists())   # still kept
 
     def test_superuser_reads_the_times_in_the_admin(self):
         ingest_event(swipe(f'{SATURDAY} 09:47:00'))

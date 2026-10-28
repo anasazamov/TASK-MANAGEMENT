@@ -196,8 +196,8 @@ FACE_MATCH_THRESHOLD=0.35
   ostida sonlari bilan legenda.
 - **Vaqti yashirin kunlar** (`ATTENDANCE_HIDDEN_DAYS`, standart `5,6` — shanba va yakshanba): kunlik
   davomat, Excel va «Mening davomatim»da kim kelgani va kirishlar soni ko'rinadi, lekin birinchi/oxirgi
-  kirish vaqti va kechikish «—»; eshik ochilishlarida bu kunlarning yozuvlari chiqmaydi; yuz tekshiruvi
-  va Telegram xabarlari yo'q. Vaqtlarni superuser admin panelda (Kunlik davomat, Eshik hodisalari) ko'radi.
+  kirish vaqti va kechikish «—»; eshik ochilishlarida esa bu kunlar ham to'liq ko'rinadi; yuz tekshiruvi
+  va Telegram xabarlari yo'q. Kunlik vaqtlarni superuser admin panelda (Kunlik davomat) ko'radi.
 - **Davomatdan ozod rollar** (`ATTENDANCE_EXEMPT_ROLES`, standart `chair`): kirishlari faqat eshik
   jurnaliga yoziladi; kunlik davomat, Excel, kelish/kechikish xabarlari va 11:00 ro'yxatida yo'q,
   menyuda «Mening davomatim» ko'rinmaydi.

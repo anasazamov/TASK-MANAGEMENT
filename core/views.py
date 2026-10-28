@@ -649,9 +649,7 @@ def access_events(request):
 
     start = parse(request.GET.get('from'), default_from)
     end = parse(request.GET.get('to'), now)
-    events = attendance_service.visible_events(
-        AccessEvent.objects.filter(happened_at__gte=start, happened_at__lte=end), request.user,
-    ).select_related('user', 'user__department')
+    events = AccessEvent.objects.filter(happened_at__gte=start, happened_at__lte=end).select_related('user', 'user__department')
     # Everyone in scope, plus unmatched events for those who see the whole org.
     if request.user.is_chair or request.user.can_oversee or request.user.is_hr:
         events = events.filter(Q(user__in=people) | Q(user__isnull=True))

@@ -49,14 +49,6 @@ def hide_from(user):
     return not user.is_superuser
 
 
-def visible_events(events, user):
-    """Leave out door events on hidden days — each one is a time — unless a superuser asks."""
-    if not hide_from(user) or not settings.ATTENDANCE_HIDDEN_DAYS:
-        return events
-    # Django counts week days Sunday=1 … Saturday=7, in the current (Tashkent) time zone.
-    return events.exclude(happened_at__week_day__in=[(day + 1) % 7 + 1 for day in settings.ATTENDANCE_HIDDEN_DAYS])
-
-
 def is_exempt(user):
     """Leadership whose comings and goings are not attendance (ATTENDANCE_EXEMPT_ROLES)."""
     return user.role in settings.ATTENDANCE_EXEMPT_ROLES

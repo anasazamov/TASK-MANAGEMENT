@@ -186,8 +186,8 @@ ATTENDANCE_ABSENT_HOUR = int(os.getenv('ATTENDANCE_ABSENT_HOUR', '11') or '11')
 ATTENDANCE_LATE_ALERT_HOUR = int(os.getenv('ATTENDANCE_LATE_ALERT_HOUR', '10') or '10')
 # Dam olish kunlari (0 — dushanba … 6 — yakshanba): eslatma va «kelmadi» xabarlari yuborilmaydi.
 ATTENDANCE_WEEKEND_DAYS = {int(d) for d in os.getenv('ATTENDANCE_WEEKEND_DAYS', '5,6').split(',') if d.strip()}
-# Vaqti yashirin kunlar (5 — shanba, 6 — yakshanba): kim kelgani ko‘rinadi, kelgan vaqtlari faqat
-# superuserga; yuz tekshiruvi va xabar yo‘q. Bo‘sh qoldirilsa, hech bir kun yashirilmaydi.
+# Vaqti yashirin kunlar (5 — shanba, 6 — yakshanba): davomatda kim kelgani ko‘rinadi, kelgan vaqtlari
+# faqat superuserga (eshik ochilishlari jurnali to‘liq ko‘rinadi); yuz tekshiruvi va xabar yo‘q. Bo‘sh qoldirilsa, hech bir kun yashirilmaydi.
 ATTENDANCE_HIDDEN_DAYS = {int(d) for d in os.getenv('ATTENDANCE_HIDDEN_DAYS', '5,6').split(',') if d.strip()}
 # Davomat yuritilmaydigan rollar (vergul bilan): ularning kirishi faqat eshik jurnaliga yoziladi,
 # kunlik davomat, Excel va kelish/kechikish/kelmaganlar xabarlarida ko‘rinmaydi.

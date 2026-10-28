@@ -56,8 +56,9 @@ class WeekendTimesHiddenTests(TestCase):
         self.assertIsNone(row['late'])                       # no lateness on a hidden day
         self.assertContains(page, 'Keldi')
         self.assertNotContains(page, '09:47')
+        # The door log is shown in full, weekend included.
         events = self.client.get(reverse('access_events') + f'?from={SATURDAY}T00:00&to={SATURDAY}T23:59')
-        self.assertEqual(len(events.context['events']), 0)   # each door event is a time
+        self.assertEqual(len(events.context['events']), 1)
 
     def test_export_leaves_the_times_out(self):
         from openpyxl import load_workbook

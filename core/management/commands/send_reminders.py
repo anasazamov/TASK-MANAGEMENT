@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
-from core import deliveries, push
+from core.notifications import deliveries, push
 from core.models import Event, Notification, Task
 
 

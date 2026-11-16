@@ -14,8 +14,8 @@ from django.core.management.base import BaseCommand
 from django.urls import reverse
 from django.utils import timezone
 
-from core import telegram
-from core.attendance import alert_once, secretaries, tracked
+from core.notifications import telegram
+from core.attendance.service import alert_once, secretaries, tracked
 from core.models import AccessCard, Attendance, AttendanceAlert, AttendanceExcuse, User
 
 

@@ -13,7 +13,7 @@ import json
 
 from django.core.management.base import BaseCommand, CommandError
 
-from core import access_cards, hikvision
+from core.attendance import access_cards, hikvision
 from core.models import AccessCard, User
 
 STATES = {'sure': 'aniq', 'likely': 'taxminiy', 'manual': 'qo‘lda', 'unmatched': 'topilmadi',

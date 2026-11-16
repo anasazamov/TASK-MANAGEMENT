@@ -18,7 +18,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
-from core import hikvision
+from core.attendance import hikvision
 
 
 class Command(BaseCommand):

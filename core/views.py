@@ -25,12 +25,12 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
-from . import guide, pages, push, reports, telegram
-from .forms import (ActionForm, AttachmentForm, ControllerForm, DepartmentForm, EmployeeEditForm,
-                    EmployeeForm, LoginForm, ParticipantForm, PartActionForm, TaskForm)
-from .models import (AccessEvent, Attendance, AttendanceExcuse, DeadlineRequest, Department, Event, ExcuseRequest,
-                     FaceEnrollment, FaceReview, PushSubscription, Task, TaskAttachment, TaskParticipant, User)
-from . import attendance as attendance_service
+from . import guide, reports
+from .assistant import pages
+from .notifications import push, telegram
+from .forms import ActionForm, AttachmentForm, ControllerForm, DepartmentForm, EmployeeEditForm, EmployeeForm, LoginForm, ParticipantForm, PartActionForm, TaskForm
+from .models import AccessEvent, Attendance, AttendanceExcuse, DeadlineRequest, Department, Event, ExcuseRequest, FaceEnrollment, FaceReview, PushSubscription, Task, TaskAttachment, TaskParticipant, User
+from .attendance import service as attendance_service
 from .permissions import can_add_participants, can_attach, can_control, can_delegate, can_manage
 from .services import add_attachment as add_task_attachment
 from .services import add_participant as add_task_participant
@@ -785,7 +785,7 @@ def attendance_hook(request, secret):
     if (not settings.ATTENDANCE_WEBHOOK_SECRET
             or not constant_time_compare(secret, settings.ATTENDANCE_WEBHOOK_SECRET)):
         raise Http404
-    from . import attendance
+    from .attendance import service as attendance
     if not attendance.source_allowed(request):
         raise Http404
     try:

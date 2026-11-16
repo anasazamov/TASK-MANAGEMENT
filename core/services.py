@@ -5,8 +5,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import DeadlineRequest, Event, Notification, Task, TaskAttachment, TaskParticipant
-from .permissions import (assignees_for, can_add_participants, can_attach, can_control,
-                          can_delegate, can_manage, controllers_for)
+from .permissions import assignees_for, can_add_participants, can_attach, can_control, can_delegate, can_manage, controllers_for
 
 
 def require(condition):
@@ -19,7 +18,7 @@ def log(task, actor, kind, body):
 
 
 def notify(task, users, title):
-    from . import deliveries
+    from .notifications import deliveries
     for user_id in {u.pk for u in users if u and u.is_active}:
         deliveries.announce(Notification.objects.create(task=task, user_id=user_id, title=title))
 

@@ -16,11 +16,8 @@ from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html
 
-from . import attendance as attendance_service
-from .models import (AccessCard, AccessEvent, AgentConversation, AgentProposal, AgentTurn, Attendance,
-                     AttendanceAlert, AttendanceExcuse, DeadlineRequest, Department, Event, ExcuseRequest,
-                     FaceEnrollment, FaceReview, GeneratedPage, Notification, PushSubscription, Task,
-                     TaskAttachment, TaskParticipant, User, VoiceProfile)
+from .attendance import service as attendance_service
+from .models import AccessCard, AccessEvent, AgentConversation, AgentProposal, AgentTurn, Attendance, AttendanceAlert, AttendanceExcuse, DeadlineRequest, Department, Event, ExcuseRequest, FaceEnrollment, FaceReview, GeneratedPage, Notification, PushSubscription, Task, TaskAttachment, TaskParticipant, User, VoiceProfile
 
 
 class AccessCardInline(admin.TabularInline):
@@ -383,7 +380,7 @@ class EnrollmentForm(forms.ModelForm):
                 raise ValidationError('Surat yuklang.')
             return image
         # Check for a face now, so a photo without one is a form error, not a lost save.
-        from . import face
+        from .attendance import face
         found = face.embed(image.read())
         image.seek(0)
         if found is None:

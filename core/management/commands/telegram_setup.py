@@ -4,7 +4,7 @@ from datetime import datetime, timezone as dt_timezone
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from core import telegram
+from core.notifications import telegram
 
 
 class Command(BaseCommand):

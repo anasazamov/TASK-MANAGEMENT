@@ -16,7 +16,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
-from core.attendance import is_exempt, settle_day
+from core.attendance.service import is_exempt, settle_day
 from core.models import AccessEvent, Attendance, User
 
 

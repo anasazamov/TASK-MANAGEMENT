@@ -1,6 +1,8 @@
 from django.contrib.auth.views import LogoutView
 from django.urls import path
-from . import views, voice_views, agent_views, realtime
+from . import views
+from .speech import voice_views, realtime
+from .assistant import agent_views
 
 urlpatterns = [
     path('login/', views.SignInView.as_view(), name='login'),

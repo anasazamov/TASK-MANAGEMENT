@@ -16,8 +16,8 @@ from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from core import access_cards, staff_doc
-from core.attendance import enroll_face
+from core.attendance import access_cards, staff_doc
+from core.attendance.service import enroll_face
 from core.models import FaceEnrollment, User
 
 STATES = {'sure': 'aniq', 'likely': 'taxminiy', 'manual': 'qo‘lda', 'unmatched': 'topilmadi',

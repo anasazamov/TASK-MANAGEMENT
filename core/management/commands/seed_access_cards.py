@@ -9,7 +9,7 @@ For later roster changes use sync_access_cards, which reads the device itself.
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from ... import access_cards
+from ...attendance import access_cards
 from ...models import User
 
 # username, domofondagi ID (employeeNo), karta raqami, domofondagi ism

@@ -297,3 +297,12 @@ Bu buyruq muddat yaqinlashishi, buzilishi, zanjir bo‘yicha eskalatsiya va eski
 ## Agentning sahifa konteksti
 
 Agent har so‘rovda ruxsatli sahifaning asosiy matni va havolalarini serverdan qayta o‘qiydi: panel, topshiriqlar, tafsilot, xodimlar, struktura, zanjir, tarix, xabarnomalar va yaratish/tahrirlash formalari. Joriy ro‘yxat UI bilan bitta filtr funksiyasidan olinadi. Bitta topshiriq bo‘lsa “joriy sahifadagi topshiriqni och” uni ochadi; ko‘p bo‘lsa haqiqiy nomzodlardan tanlov so‘raladi. Brauzerda saqlanmagan forma qiymatlari yoki parollar modelga yuborilmaydi. Sahifa matni 24 000 belgi bilan chegaralangan; batafsil ma’lumot alohida o‘qish vositalaridan olinadi.
+
+## Claude’ni ulash (MCP)
+
+Bu imkoniyat faqat boshqaruv raisida bor: sahifa ham, menyudagi havola ham boshqalarga ko‘rinmaydi, rais bo‘lmagan hisobning kaliti esa rad etiladi (rol o‘zgarsa, eski kalit ham ishlamay qoladi). Rais menyudagi «Claude’ni ulash» sahifasida shaxsiy kalit ochadi va Claude’ni `https://<domen>/mcp/` manziliga ulaydi. Claude rais nomidan, uning huquqlari bilan ishlaydi: ichki yordamchidagi vositalarning o‘zi (`core/assistant/agent_tools.py`) MCP orqali beriladi, sahifa ochadiganlaridan tashqari. `prepare_*` vositalari hech narsa saqlamaydi; o‘zgarish faqat `confirm_action` chaqirilgach yoziladi.
+
+- Kalit ikki usulda yuboriladi: `Authorization: Bearer <kalit>` sarlavhasi yoki `/mcp/t/<kalit>/` manzili (sarlavha qo‘ya olmaydigan mijozlar uchun). Manzildagi kalit veb-server jurnaliga tushadi, shuning uchun sarlavha afzal.
+- Bazada kalitning faqat SHA-256 izi saqlanadi; kalit bir marta, ochilgan paytda ko‘rsatiladi. Bekor qilish — o‘sha sahifada yoki admin paneldagi «Claude ulanishlari» bo‘limida.
+- Transport — Streamable HTTP, sessiyasiz: har bir POST oddiy JSON bilan javob oladi. Kod: `core/mcp/server.py`, testlar: `core/tests/test_mcp.py`.
+- `MCP_ENABLED=0` manzilni ham, sahifani ham yopadi.

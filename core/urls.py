@@ -3,6 +3,7 @@ from django.urls import path
 from . import views
 from .speech import voice_views, realtime
 from .assistant import agent_views
+from .mcp import server as mcp_server, views as mcp_views
 
 urlpatterns = [
     path('login/', views.SignInView.as_view(), name='login'),
@@ -65,5 +66,8 @@ urlpatterns = [
     path('notifications/live/', views.notifications_live, name='notifications_live'),
     path('notifications/read/', views.notifications_read, name='notifications_read'),
     path('timeline/', views.timeline, name='timeline'),
+    path('me/claude/', mcp_views.connect, name='claude_connect'),
+    path('mcp/', mcp_server.endpoint, name='mcp'),
+    path('mcp/t/<str:token>/', mcp_server.endpoint, name='mcp_token'),
     path('chains/', views.chains, name='chains'),
 ]

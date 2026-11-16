@@ -43,6 +43,7 @@
     <div class="workspace-note"><span class="online-dot"></span> Yagona ijro nazorati tizimi</div>
     <div class="user-card"><span class="avatar navy">{{ user.initials }}</span><div><strong>{{ user.short_name }}</strong><small>{{ user.get_role_display }}</small></div><form action="{% url 'logout' %}" method="post">{% csrf_token %}<button class="icon-button" title="Chiqish" aria-label="Hisobdan chiqish">{% icon 'exit' %}</button></form></div>
     <a class="account-link" href="{% url 'password_change' %}">Parolni o‘zgartirish</a>
+    {% if mcp_enabled %}<a class="account-link" href="{% url 'claude_connect' %}">Claude’ni ulash</a>{% endif %}
   </div>
 </aside>
 <div class="workspace">

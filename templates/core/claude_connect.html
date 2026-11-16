@@ -1,0 +1,45 @@
+{% extends 'base.html' %}{% load ui %}{% block content %}
+<div class="form-card card">
+  <div class="form-card-heading">
+    <h2>Claude’ni ulash</h2>
+    <p>Bu imkoniyat faqat boshqaruv raisida bor. Ulangach, Claude topshiriqlar, xodimlar va davomatni shu tizimdan o‘qiydi va sizning huquqlaringiz bilan ishlaydi. Har bir o‘zgartirishni avval ko‘rsatadi, siz rozi bo‘lgandan keyingina saqlaydi.</p>
+  </div>
+
+  {% if secret %}
+  <div class="notice warning" role="alert">
+    <strong>Kalitni hozir nusxalab oling — u qayta ko‘rsatilmaydi</strong>
+    <p>Bu kalit parolingiz bilan teng. Uni hech kimga bermang va chatga yozmang. Yo‘qotsangiz, ulanishni bekor qilib, yangisini oching.</p>
+  </div>
+  <label>Claude ilovasi yoki claude.ai uchun manzil (Sozlamalar → Connectors → Add custom connector)
+    <input type="text" readonly value="{{ token_url }}" onclick="this.select()">
+  </label>
+  <label>Claude Code uchun buyruq
+    <input type="text" readonly value='claude mcp add --transport http topshiriq {{ endpoint }} --header "Authorization: Bearer {{ secret }}"' onclick="this.select()">
+  </label>
+  {% endif %}
+
+  <form method="post" class="stack-form">
+    {% csrf_token %}
+    <label>Yangi ulanish nomi
+      <input type="text" name="name" maxlength="60" placeholder="Masalan: ish kompyuterim">
+    </label>
+    <div><button class="button primary" type="submit">{% icon 'plus' %} Ulanish ochish</button></div>
+  </form>
+</div>
+
+<div class="section-heading" style="margin-top:28px"><h2>Ochiq ulanishlar <span class="count-pill">{{ tokens|length }}</span></h2></div>
+{% if tokens %}
+<div class="card stats-scroll"><table class="stats-table">
+  <thead><tr><th class="name">Nomi</th><th>Kalit</th><th>Ochilgan</th><th>Oxirgi ishlatilgan</th><th></th></tr></thead>
+  <tbody>{% for token in tokens %}<tr>
+    <td class="name">{{ token.name }}</td>
+    <td>…{{ token.hint }}</td>
+    <td>{{ token.created_at|date:'d.m.Y H:i' }}</td>
+    <td>{% if token.last_used_at %}{{ token.last_used_at|date:'d.m.Y H:i' }}{% else %}<span class="muted">hali ishlatilmagan</span>{% endif %}</td>
+    <td><form method="post">{% csrf_token %}<button class="button mini secondary" type="submit" name="revoke" value="{{ token.pk }}">Bekor qilish</button></form></td>
+  </tr>{% endfor %}</tbody>
+</table></div>
+{% else %}
+<div class="empty-state small">{% icon 'link' %}<h2>Hali ulanish yo‘q</h2><p>Yuqorida nom yozib, «Ulanish ochish» tugmasini bosing.</p></div>
+{% endif %}
+{% endblock %}

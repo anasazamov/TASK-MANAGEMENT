@@ -225,6 +225,9 @@ HIKVISION_ALERT_PATH = os.getenv('HIKVISION_ALERT_PATH', '/ISAPI/Event/notificat
 # yoziladi. Papka shaxsiy ma’lumot saqlaydi — git’ga kiritilmaydi.
 ATTENDANCE_CAPTURE_DIR = os.getenv('ATTENDANCE_CAPTURE_DIR', str(BASE_DIR / 'attendance-capture')).strip()
 
+# Claude (MCP) ulanishi: faqat boshqaruv raisi shaxsiy kalit bilan /mcp/ ga ulanadi. 0 — butunlay o‘chiradi.
+MCP_ENABLED = os.getenv('MCP_ENABLED', '1').strip() not in ('0', 'false', 'no', '')
+
 # Server-side credentials only; never included in templates or API responses.
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '').strip()
 OPENAI_TASK_MODEL = os.getenv('OPENAI_TASK_MODEL', 'gpt-5.6-sol').strip()

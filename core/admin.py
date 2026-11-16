@@ -17,7 +17,7 @@ from django.utils import timezone
 from django.utils.html import format_html
 
 from .attendance import service as attendance_service
-from .models import AccessCard, AccessEvent, AgentConversation, AgentProposal, AgentTurn, Attendance, AttendanceAlert, AttendanceExcuse, DeadlineRequest, Department, Event, ExcuseRequest, FaceEnrollment, FaceReview, GeneratedPage, Notification, PushSubscription, Task, TaskAttachment, TaskParticipant, User, VoiceProfile
+from .models import AccessCard, AccessEvent, AgentConversation, AgentProposal, AgentTurn, Attendance, AttendanceAlert, AttendanceExcuse, DeadlineRequest, Department, Event, ExcuseRequest, FaceEnrollment, FaceReview, GeneratedPage, McpToken, Notification, PushSubscription, Task, TaskAttachment, TaskParticipant, User, VoiceProfile
 
 
 class AccessCardInline(admin.TabularInline):
@@ -421,3 +421,16 @@ class AttendanceAlertAdmin(admin.ModelAdmin):
 admin.site.site_header = 'Topshiriq nazorati · Administratsiya'
 admin.site.site_title = 'Topshiriq nazorati'
 admin.site.index_title = 'Ma’lumotlar'
+
+
+@admin.register(McpToken)
+class McpTokenAdmin(admin.ModelAdmin):
+    """Who has connected Claude, and when it was last used. Keys cannot be read or made here."""
+    list_display = ('user', 'name', 'hint', 'created_at', 'last_used_at', 'revoked_at')
+    list_filter = ('revoked_at',)
+    search_fields = ('user__full_name', 'user__username', 'name')
+    readonly_fields = ('user', 'hint', 'created_at', 'last_used_at')
+    fields = ('user', 'name', 'hint', 'created_at', 'last_used_at', 'revoked_at')
+
+    def has_add_permission(self, request):
+        return False

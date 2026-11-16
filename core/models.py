@@ -671,3 +671,25 @@ class ExcuseRequest(models.Model):
         if self.kind == AttendanceExcuse.Kind.LATE and self.expected_at:
             text += f' ({self.expected_at:%H:%M} da)'
         return f'{text}: {self.note}' if self.note else text
+
+
+class McpToken(models.Model):
+    """A personal key that lets an MCP client (Claude) act as this employee.
+
+    Only the SHA-256 digest is kept: the key itself is shown once, when it is made.
+    """
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='mcp_tokens')
+    name = models.CharField('Nomi', max_length=60)
+    digest = models.CharField(max_length=64, unique=True, editable=False)
+    hint = models.CharField('Kalit oxiri', max_length=4, editable=False)
+    created_at = models.DateTimeField('Ochilgan', default=timezone.now)
+    last_used_at = models.DateTimeField('Oxirgi ishlatilgan', null=True, blank=True)
+    revoked_at = models.DateTimeField('Bekor qilingan', null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Claude ulanishi'
+        verbose_name_plural = 'Claude ulanishlari'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.user.short_name} — {self.name}'

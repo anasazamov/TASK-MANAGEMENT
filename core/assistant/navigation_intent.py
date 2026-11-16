@@ -53,6 +53,10 @@ def page_target(command):
         'notifications': page_pattern('xabarnomalar', 'bildirishnomalar'),
         'chains': r'nazorat zanjir' + ENDING + PLACE,
         'generated_pages': page_pattern('agent sahifalari', 'agent sahifalar'),
+        'my_attendance': r'(?:mening )?(?:davomatim|yoqlamam)' + ENDING + PLACE,
+        'attendance_daily': page_pattern('davomat', 'kunlik davomat', 'yoqlama'),
+        'excuse_requests': r'ruxsat sorovlar' + ENDING + PLACE,
+        'access_events': r'eshik ochilishlar' + ENDING + PLACE,
     }
     return next((page for page, pattern in patterns.items() if re.fullmatch(pattern, text)), None)
 

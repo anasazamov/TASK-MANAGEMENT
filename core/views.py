@@ -380,21 +380,15 @@ def pending_reviews_for(user):
                                      user__in=attendance_service.visible_employees(user)).count()
 
 
-@login_required
-def attendance_daily(request):
-    require(request.user.sees_employees)
-    people = list(attendance_service.tracked(attendance_service.visible_employees(request.user))
+def attendance_day_rows(user, day):
+    """One row per tracked employee this user may see, for one day; and whether it is a day off.
+
+    A hidden day (the weekend) is offered in the strip but holds no attendance for
+    anyone but a superuser: entries are kept, the door log shows them, this list not.
+    """
+    people = list(attendance_service.tracked(attendance_service.visible_employees(user))
                   .select_related('department').order_by('full_name'))
-    today = timezone.localdate()
-    try:
-        day = date.fromisoformat(request.GET.get('date', '')) if request.GET.get('date') else today
-    except ValueError:
-        day = today
-    if day > today:
-        day = today
-    # A hidden day (the weekend) is offered in the strip but holds no attendance for
-    # anyone but a superuser: entries are kept, the door log shows them, this page not.
-    day_off = attendance_service.hide_from(request.user) and attendance_service.is_hidden_day(day)
+    day_off = attendance_service.hide_from(user) and attendance_service.is_hidden_day(day)
     if day_off:
         people = []
     records = {a.user_id: a for a in Attendance.objects.filter(user__in=people, date=day)}
@@ -411,6 +405,20 @@ def attendance_daily(request):
         rows.append({'user': person, 'attendance': attendance, 'excuse': excuses.get(person.pk),
                      'review': decisions.get(attendance.pk) if attendance else None,
                      'late': late, 'late_label': attendance_service.duration_label(late) if late else ''})
+    return rows, day_off
+
+
+@login_required
+def attendance_daily(request):
+    require(request.user.sees_employees)
+    today = timezone.localdate()
+    try:
+        day = date.fromisoformat(request.GET.get('date', '')) if request.GET.get('date') else today
+    except ValueError:
+        day = today
+    if day > today:
+        day = today
+    rows, day_off = attendance_day_rows(request.user, day)
     if request.GET.get('format') == 'xlsx' and not day_off:
         marked = request.GET.get('marked') == '1'
         name = f"davomat-{day:%Y%m%d}{'-belgilangan' if marked else ''}.xlsx"

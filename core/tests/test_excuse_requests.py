@@ -79,7 +79,7 @@ class ExcuseRequestFlowTests(TestCase):
             resolve_excuse_request(self.secretary, item.pk, True)
 
 
-@override_settings(ATTENDANCE_LATE_HOUR=9, ATTENDANCE_ABSENT_HOUR=11)
+@override_settings(ATTENDANCE_LATE_HOUR=9, ATTENDANCE_ABSENT_HOUR=11, ATTENDANCE_HIDDEN_DAYS=set())
 class ExcusePagesTests(TestCase):
     def setUp(self):
         self.secretary = User.objects.create_user('kotib', full_name='Kotib Referent', role='secretary', password='x')

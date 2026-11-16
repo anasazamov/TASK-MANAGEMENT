@@ -120,7 +120,66 @@ class AccountPage(Arguments):
     employee_id: ID | None
 
 
+ExcuseKind = Literal['sick', 'late', 'trip', 'leave', 'other']
+
+
+class AttendanceMonth(Arguments):
+    employee_id: ID | None
+    month: str | None = Field(max_length=7)
+
+
+class AttendanceDay(Arguments):
+    date: str | None = Field(max_length=10)
+    only: Literal['all', 'present', 'late', 'absent', 'excused', 'review']
+
+
+class ExcuseList(Arguments):
+    scope: Literal['mine', 'to_decide']
+
+
+class ExcuseAsk(Arguments):
+    kind: ExcuseKind
+    date: str = Field(min_length=10, max_length=10)
+    until: str | None = Field(max_length=10)
+    expected_at: str | None = Field(max_length=5)
+    note: str = Field(max_length=300)
+
+
+class ExcuseEntry(ExcuseAsk):
+    employee_id: ID
+
+
+class ExcuseRequestID(Arguments):
+    request_id: ID
+
+
+class ExcuseDecision(Arguments):
+    request_id: ID
+    approve: bool
+    reason: str = Field(max_length=2000)
+
+
+class ExcuseRemove(Arguments):
+    employee_id: ID
+    date: str = Field(min_length=10, max_length=10)
+
+
+class AttendancePage(Arguments):
+    page: Literal['my_attendance', 'my_excuse_request', 'attendance_daily', 'excuse_requests',
+                  'access_events', 'face_reviews', 'face_enrollments']
+    date: str | None = Field(max_length=10)
+
+
 TOOLS = {
+    'attendance_month': (AttendanceMonth, 'Read one month of attendance day by day: arrivals, lateness, absences, excused days. employee_id=null is the current user; another employee needs their real ID from list_people and is limited to the staff this user oversees. month is "YYYY-MM" or null for the current month.'),
+    'attendance_day': (AttendanceDay, 'Read who came, was late, is absent or excused on one day (date "YYYY-MM-DD", null = today) among the staff this user oversees. only narrows the list: absent answers "kim kelmadi", late "kim kechikdi". Not available to ordinary employees.'),
+    'list_excuse_requests': (ExcuseList, 'Read permission requests with their real IDs: scope=mine lists the current user’s own requests and decisions; scope=to_decide lists pending requests awaiting this user’s decision (secretary and HR only).'),
+    'prepare_excuse_request': (ExcuseAsk, 'Prepare the current user’s own request to be excused: asking leave ahead ("ruxsat so‘rash") or explaining a past day ("sababini bildirish"). kind: sick, late (expected_at "HH:MM" = when they will arrive), trip, leave, other (note required). date and until are "YYYY-MM-DD"; until=null for one day. Does not send until confirmed.'),
+    'prepare_excuse_cancel': (ExcuseRequestID, 'Prepare withdrawing the current user’s own pending request. request_id comes from list_excuse_requests scope=mine.'),
+    'prepare_excuse_decision': (ExcuseDecision, 'Prepare approving or rejecting an employee’s pending request. request_id comes from list_excuse_requests scope=to_decide. Rejecting needs a reason, which is sent to the employee. Secretary and HR only.'),
+    'prepare_excuse_entry': (ExcuseEntry, 'Prepare entering an excuse for an employee directly, without a request ("sabab kiritish"): same fields as prepare_excuse_request plus the employee’s real ID. For staff who oversee that employee.'),
+    'prepare_excuse_remove': (ExcuseRemove, 'Prepare removing the excuse entered for one employee on one day ("YYYY-MM-DD").'),
+    'open_attendance': (AttendancePage, 'Open an attendance page: my_attendance (own month), my_excuse_request (the request form), attendance_daily (daily list, optional date), excuse_requests (requests to decide), access_events (door log), face_reviews, face_enrollments. date is "YYYY-MM-DD" or null.'),
     'read_structure': (Arguments, 'Read authorized departments and employee accounts, including inactive accounts, roles, and department IDs. Required before employee/department changes.'),
     'prepare_employee': (EmployeeChange, 'Prepare employee creation/update/block/unblock. Chair only. employee_id=null creates; creation requires username/full_name/department_id/role. Null fields on update stay unchanged. No passwords: created accounts require setting a password on the secure page.'),
     'prepare_department': (DepartmentChange, 'Prepare creating a department (null ID) or renaming a real department. Chair only.'),
@@ -159,7 +218,8 @@ def get_task(user, pk):
 
 
 def people(user):
-    if user.is_chair or user.can_oversee:
+    # HR keeps everyone's attendance, so it has to be able to name anyone.
+    if user.is_chair or user.can_oversee or user.is_hr:
         return User.objects.filter(is_active=True, is_superuser=False)
     if user.is_deputy:
         return User.objects.filter(Q(department_id__in=user.supervised_ids) | Q(pk=user.pk), is_active=True)
@@ -429,6 +489,8 @@ def proposal_data(proposal):
     return {'id': str(proposal.pk), 'preview': proposal.preview, 'expires_at': proposal.expires_at.isoformat()}
 
 
+ATTENDANCE_TOOLS = ('prepare_excuse_request', 'prepare_excuse_cancel', 'prepare_excuse_decision',
+                    'prepare_excuse_entry', 'prepare_excuse_remove')
 ADMIN_TOOLS = ('prepare_employee', 'prepare_department', 'prepare_task_edit', 'prepare_notifications_read',
                'prepare_participant', 'prepare_part_action')
 
@@ -437,6 +499,9 @@ def prepare(user, conversation, name, args):
     if name in ADMIN_TOOLS:
         from . import agent_admin
         return agent_admin.prepare(user, conversation, name, args)
+    if name in ATTENDANCE_TOOLS:
+        from . import agent_attendance
+        return agent_attendance.prepare(user, conversation, name, args)
     if name == 'prepare_task':
         data, parent = new_task_data(user, args)
         preview = {'Amal': 'Quyi topshiriq yaratish' if parent else 'Topshiriq yaratish', 'Mazmun': data['title'],
@@ -481,6 +546,9 @@ def confirm(user, conversation, proposal_id, cancel=False):
     if name in ADMIN_TOOLS:
         from . import agent_admin
         return agent_admin.confirm(user, proposal, name, args)
+    if name in ATTENDANCE_TOOLS:
+        from . import agent_attendance
+        return agent_attendance.confirm(user, proposal, name, args)
     lock_id = getattr(args, 'task_id', None) or getattr(args, 'parent_id', None)
     if lock_id:
         Task.objects.select_for_update().get(pk=lock_id)
@@ -516,6 +584,13 @@ def execute(user, conversation, name, raw, references):
     if name in ('read_structure', 'navigate_account'):
         from . import agent_admin
         return agent_admin.read_or_navigate(user, name, args)
+    if name in ('attendance_month', 'attendance_day', 'list_excuse_requests'):
+        from . import agent_attendance
+        return agent_attendance.read(user, name, args)
+    if name == 'open_attendance':
+        from . import agent_attendance
+        require(user.is_active)
+        return agent_attendance.open_page(user, args.page, agent_attendance.parse_day(args.date))
     if name == 'search_tasks':
         tasks = filtered(user, args.query, args.status, args.assignee_id)
         count = tasks.count()

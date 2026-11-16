@@ -21,7 +21,7 @@ class Answer(Arguments):
 
 
 class Clarify(Arguments):
-    kind: Literal['person', 'task', 'work', 'deadline', 'date', 'intent', 'help', 'greeting', 'thanks', 'correction']
+    kind: Literal['person', 'task', 'work', 'deadline', 'date', 'intent', 'help', 'greeting', 'thanks', 'correction', 'excuse', 'refusal_reason', 'face_review']
 
 
 QUESTIONS = {
@@ -31,7 +31,10 @@ QUESTIONS = {
     'deadline': 'Qachongacha bajarilishi kerak? Sana va vaqtni ayting yoki «muddatsiz» deng.',
     'date': 'Sana yoki vaqt aniq emas. Muddatni kun, oy va soat bilan ayting.',
     'intent': 'Buyruqni aniq tushunmadim. Qaysi xodim yoki topshiriq bilan nima qilish kerak?',
-    'help': 'Xodim va topshiriqlarni qidirish, sahifalarni ochish, holat va muddatlarni tekshirishga yordam beraman. O‘zgartirishlar avval tasdiqlash uchun ko‘rsatiladi.',
+    'help': 'Xodim va topshiriqlarni qidirish, sahifalarni ochish, holat va muddatlarni tekshirish, davomatni ko‘rish va ruxsat so‘rashga yordam beraman. O‘zgartirishlar avval tasdiqlash uchun ko‘rsatiladi.',
+    'refusal_reason': 'Rad etish sababini ayting — u xodimga yuboriladi va saqlanadi.',
+    'face_review': 'Yuz tekshiruvi suratga qarab hal qilinadi, uni men qaror qila olmayman. «Yuz tekshiruvini och» desangiz, sahifasini ochaman.',
+    'excuse': 'Qaysi kun uchun va qanday sabab bilan? Masalan: «ertaga kasalman» yoki «bugun 10:30 da kelaman».',
     'greeting': 'Assalomu alaykum. Qaysi topshiriq bo‘yicha yordam kerak?',
     'thanks': 'Marhamat. Yana qaysi topshiriq bo‘yicha yordam kerak?',
     'correction': 'Ma’lumotni bazadan qayta tekshiraman. Qaysi xodim yoki topshiriq nazarda tutilgan?',
@@ -117,6 +120,9 @@ def render(name, data, focus='overview'):
         if focus == 'count':
             return message
         return message+'\n'+lines([describe(row) for row in result['rows']])
+    if name in ('attendance_month', 'attendance_day', 'list_excuse_requests'):
+        from . import agent_attendance
+        return agent_attendance.render(name, data, focus)
     if name == 'read_structure':
         departments = {item['id']: item['name'] for item in data['departments']}
         return 'Bo‘linmalar:\n'+lines(departments.values())+'\nXodimlar:\n'+lines([

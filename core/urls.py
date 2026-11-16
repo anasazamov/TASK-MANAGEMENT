@@ -69,5 +69,8 @@ urlpatterns = [
     path('me/claude/', mcp_views.connect, name='claude_connect'),
     path('mcp/', mcp_server.endpoint, name='mcp'),
     path('mcp/t/<str:token>/', mcp_server.endpoint, name='mcp_token'),
+    # Clients often drop the trailing slash, and a redirect would lose the POST body.
+    path('mcp', mcp_server.endpoint),
+    path('mcp/t/<str:token>', mcp_server.endpoint),
     path('chains/', views.chains, name='chains'),
 ]

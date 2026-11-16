@@ -92,6 +92,12 @@ class McpTests(TestCase):
         self.assertEqual(response.json(), {'jsonrpc': '2.0', 'id': 7, 'result': {}})
         self.assertEqual(self.client.post(reverse('mcp_token', args=['tn_wrong']), '{}', content_type='application/json').status_code, 401)
 
+    def test_address_without_the_trailing_slash_is_served_not_redirected(self):
+        body = json.dumps({'jsonrpc': '2.0', 'id': 3, 'method': 'ping'})
+        for url, headers in [(f'/mcp/t/{self.key}', {}), ('/mcp', {'HTTP_AUTHORIZATION': f'Bearer {self.key}'})]:
+            response = self.client.post(url, body, content_type='application/json', **headers)
+            self.assertEqual((response.status_code, response.json()['result']), (200, {}))
+
     def test_revoked_key_and_blocked_employee_are_refused(self):
         second = self.issue(self.chair)
         McpToken.objects.filter(digest=digest(second)).update(revoked_at=timezone.now())

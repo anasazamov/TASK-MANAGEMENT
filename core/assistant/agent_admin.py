@@ -82,6 +82,7 @@ def apply(user, name, args):
             data = {key: getattr(args,key) if getattr(args,key) is not None else getattr(item,key)
                     for key in ['full_name','job_title','role']}
             data['phone'] = item.phone
+            data['expertise'] = item.expertise      # not the assistant's to change; keep it
             data['department'] = args.department_id if args.department_id is not None else item.department_id
             item = validate(EmployeeEditForm(data,instance=item)).save()
         else:

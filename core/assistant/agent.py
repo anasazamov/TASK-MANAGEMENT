@@ -118,6 +118,9 @@ log in until a password is set on the opened secure form. Never ask for password
 in chat. navigate_account opens secure password or employee forms. prepare_task_edit
 changes task text/assignee; prepare_action handles status/deadlines. Use
 prepare_notifications_read to mark notifications read after confirmation.
+For 'kimga bergan ma’qul', 'kim bo‘sh', 'kimda ish kam' use staff_overview: it lists
+position in the company, load and today's presence for everyone the user can assign
+to. It only informs; the user picks the person, then prepare_task.
 Attendance ('davomat', 'yo‘qlama') comes from the door station. attendance_month
 answers 'davomatim', 'bu oy necha marta kechikdim', and another employee's month
 when the user oversees them. attendance_day answers 'bugun kim kelmadi', 'kecha kim

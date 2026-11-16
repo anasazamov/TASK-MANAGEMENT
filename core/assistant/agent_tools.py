@@ -11,7 +11,7 @@ from django.utils import timezone
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..forms import TaskForm
-from ..models import AgentProposal, Event, Task, User
+from ..models import AgentProposal, Department, Event, Task, User
 from ..permissions import assignees_for, can_control, can_delegate, can_manage
 from . import typesafe
 from .person_search import find_people, words, variants
@@ -164,6 +164,10 @@ class ExcuseRemove(Arguments):
     date: str = Field(min_length=10, max_length=10)
 
 
+class StaffOverview(Arguments):
+    department_id: ID | None
+
+
 class AttendancePage(Arguments):
     page: Literal['my_attendance', 'my_excuse_request', 'attendance_daily', 'excuse_requests',
                   'access_events', 'face_reviews', 'face_enrollments']
@@ -171,6 +175,7 @@ class AttendancePage(Arguments):
 
 
 TOOLS = {
+    'staff_overview': (StaffOverview, 'Read, in one table, everyone this user can give a task to: job title, department, place in the hierarchy (position: deputy with the departments they supervise, head of a department, or staff; reports_to: who is directly above them), what they are trained in and have done (expertise), how many tasks they have in progress and overdue, and whether they are at work today. Use it to advise who should get a task. department_id narrows it to one department (real ID from read_structure), null lists all.'),
     'attendance_month': (AttendanceMonth, 'Read one month of attendance day by day: arrivals, lateness, absences, excused days. employee_id=null is the current user; another employee needs their real ID from list_people and is limited to the staff this user oversees. month is "YYYY-MM" or null for the current month.'),
     'attendance_day': (AttendanceDay, 'Read who came, was late, is absent or excused on one day (date "YYYY-MM-DD", null = today) among the staff this user oversees. only narrows the list: absent answers "kim kelmadi", late "kim kechikdi". Not available to ordinary employees.'),
     'list_excuse_requests': (ExcuseList, 'Read permission requests with their real IDs: scope=mine lists the current user’s own requests and decisions; scope=to_decide lists pending requests awaiting this user’s decision (secretary and HR only).'),
@@ -385,6 +390,51 @@ def filtered(user, query='', status='all', assignee_id=None):
     return tasks
 
 
+def staff_overview(user, args):
+    """Who could take a task: fit (job, department, expertise), load, and presence today."""
+    from .. import reports
+    from ..views import attendance_day_rows
+    from . import agent_attendance
+    require(user.is_active and user.can_assign)
+    candidates = assignees_for(user).select_related('department').order_by('department__name', 'full_name')
+    if args.department_id is not None:
+        candidates = candidates.filter(department_id=args.department_id)
+    load = {row['assignee_id']: row for row in reports.employee_stats(user)}
+    today, presence = timezone.localdate(), {}
+    if user.sees_employees:
+        rows, _ = attendance_day_rows(user, today)
+        presence = {row['user'].pk: agent_attendance.day_state(row, today, today) for row in rows}
+    # Who stands above each department: its head, then the deputy of its line, then the chair.
+    heads = {d.pk: d.head for d in Department.objects.select_related('head') if d.head_id and d.head.is_active}
+    deputies = {}
+    for deputy in User.objects.filter(is_active=True, role=User.Role.DEPUTY).prefetch_related('supervised'):
+        for department in deputy.supervised.all():
+            deputies.setdefault(department.pk, []).append(deputy)
+    people_rows = []
+    for person in candidates[:80]:
+        counts = load.get(person.pk, {})
+        above = deputies.get(person.department_id, [])
+        if person.is_deputy:
+            position = 'Rais o‘rinbosari; nazoratidagi bo‘linmalar: ' + (
+                ', '.join(d.name for d in person.supervised.all()) or 'belgilanmagan')
+            reports_to = 'Boshqaruv raisi'
+        elif heads.get(person.department_id) == person or person.role == User.Role.HEAD:
+            position = 'Bo‘linma boshlig‘i'
+            reports_to = ', '.join(d.full_name for d in above) + ' (o‘rinbosar)' if above else 'Boshqaruv raisi (bevosita)'
+        else:
+            position = person.get_role_display()
+            head = heads.get(person.department_id)
+            reports_to = (f'{head.full_name} (bo‘linma boshlig‘i)' if head and head != person else
+                          ', '.join(d.full_name for d in above) + ' (o‘rinbosar)' if above else 'Boshqaruv raisi (bevosita)')
+        people_rows.append({'id': person.pk, 'name': person.full_name, 'job_title': person.job_title,
+                            'department': person.department.name if person.department else '',
+                            'position': position, 'reports_to': reports_to,
+                            'in_progress': counts.get('in_progress', 0),
+                            'overdue': counts.get('overdue', 0), 'today': presence.get(person.pk),
+                            'expertise': person.expertise[:1500]})
+    return {'total': candidates.count(), 'people': people_rows}
+
+
 def navigate(user, args):
     if args.page == 'structure':
         require(user.is_chair)
@@ -587,6 +637,8 @@ def execute(user, conversation, name, raw, references):
     if name in ('attendance_month', 'attendance_day', 'list_excuse_requests'):
         from . import agent_attendance
         return agent_attendance.read(user, name, args)
+    if name == 'staff_overview':
+        return staff_overview(user, args)
     if name == 'open_attendance':
         from . import agent_attendance
         require(user.is_active)

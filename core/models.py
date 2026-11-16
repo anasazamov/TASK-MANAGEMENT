@@ -41,6 +41,11 @@ class User(AbstractUser):
     # departments they answer for, and the whole of their reach is derived here.
     supervised = models.ManyToManyField(Department, blank=True, related_name='deputies',
                                         verbose_name='Nazorat qiladigan bo‘linmalar')
+    # What the person is trained in and has done: read when choosing who should get a
+    # task. Professional facts only — no birth data, address or family.
+    expertise = models.TextField('Malakasi va tajribasi', blank=True, max_length=4000,
+                                 help_text='Ma’lumoti, mutaxassisligi va ish tajribasi. Topshiriqni kimga berishni '
+                                           'tanlashda hisobga olinadi. Shaxsiy ma’lumot (tug‘ilgan sana, manzil, oila) yozilmaydi.')
     # Onboarding: when the welcome checklist was closed, and when the person set their
     # own password (a reset by the chair does not count) — so that step ticks itself.
     # HR (kadrlar xizmati): on top of the role, sees every employee's statistics and

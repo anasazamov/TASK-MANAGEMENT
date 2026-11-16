@@ -123,6 +123,13 @@ def render(name, data, focus='overview'):
     if name in ('attendance_month', 'attendance_day', 'list_excuse_requests'):
         from . import agent_attendance
         return agent_attendance.render(name, data, focus)
+    if name == 'staff_overview':
+        from .agent_attendance import STATES as PRESENCE
+        if not data['people']:
+            return 'Topshiriq bera oladigan xodim topilmadi.'
+        rows = [person_row(p) + f" [{p['position'].split(';')[0]}]: jarayonda {p['in_progress']} ta, muddati o‘tgan {p['overdue']} ta"
+                + (f"; bugun: {PRESENCE[p['today']].lower()}" if p['today'] else '') for p in data['people']]
+        return f"Topshiriq berish mumkin bo‘lgan xodimlar — {data['total']} ta:\n" + lines(rows)
     if name == 'read_structure':
         departments = {item['id']: item['name'] for item in data['departments']}
         return 'Bo‘linmalar:\n'+lines(departments.values())+'\nXodimlar:\n'+lines([

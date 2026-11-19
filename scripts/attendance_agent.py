@@ -27,6 +27,7 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import deque
 from datetime import datetime, timedelta, timezone
@@ -80,7 +81,14 @@ def device_base(config):
 
 
 def device_opener(config):
-    """A urllib opener that answers the device's HTTP Digest challenge."""
+    """A urllib opener that answers the device's HTTP Digest challenge.
+
+    Make a new one after any failed request. urllib counts digest retries and clears
+    the count only when a request ends normally; a timeout or a dropped connection in
+    the middle of the challenge leaves it standing. After five of those the handler
+    refuses every later request with "401: digest auth failed" without asking the
+    device at all, and stays that way until the process restarts.
+    """
     manager = urllib.request.HTTPPasswordMgrWithDefaultRealm()
     manager.add_password(None, device_base(config), config['device_user'], config['device_password'])
     return urllib.request.build_opener(urllib.request.HTTPDigestAuthHandler(manager))
@@ -238,6 +246,7 @@ class FrameBuffer(threading.Thread):
                 if not self.failing:
                     LOG.warning('Frame buffer failed (%s); retrying', type(error).__name__)
                     self.failing = True
+                self.opener = device_opener(self.config)
                 time.sleep(2)
 
     def around(self, device_time_text):
@@ -393,8 +402,9 @@ def main():
     if config['frame_buffer'] and not args.once:   # a single poll has no time to fill a buffer
         frames = FrameBuffer(config)
         frames.start()
-    LOG.info('Agent started. Device=%s Server=%s Interval=%ss Cursor=%s',
-             config['device_host'], config['server_url'], config['interval_seconds'], cursor)
+    # The server address ends in the webhook secret; the log names the host only.
+    LOG.info('Agent started. Device=%s Server=%s Interval=%ss Cursor=%s', config['device_host'],
+             urllib.parse.urlsplit(config['server_url']).netloc, config['interval_seconds'], cursor)
     while True:
         try:
             cursor, forwarded = poll_once(config, opener, cursor, seen, frames)
@@ -406,6 +416,7 @@ def main():
             return 0
         except (urllib.error.URLError, OSError, ValueError) as error:
             LOG.warning('Poll failed (%s): %s', type(error).__name__, error)
+            opener = device_opener(config)
         if args.once:
             return 0
         time.sleep(max(1, int(config['interval_seconds'])))
